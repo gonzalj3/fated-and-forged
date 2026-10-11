@@ -45,6 +45,7 @@ npm install
 Make the requested changes. Put new images in `public/products/` and update the catalog files described below. Then validate, regenerate the downloadable source bundle, and deploy:
 
 ```bash
+npm test
 npm run build
 git diff --check 2>/dev/null || true
 rg -n --hidden --glob '!.git/**' 'arcade''_sk_|ghp''_|github''_pat_' .
@@ -61,23 +62,35 @@ The secret scan should return no matches. The deployment must report that it was
 - `lib/store-catalog.ts` contains the product IDs and customer-facing metadata used by `/api/catalog`.
 - `app/storefront.tsx` contains the storefront layout and its fallback product data.
 - `data/arcade-products.json` is the checked-in audit record for generated products.
-- `experiments/arcade-bracelet-probes/` preserves the original bracelet pattern experiments.
 
-For a new image, use a unique lowercase hyphenated filename such as `midnight-orbit-necklace.png`. Prefer a square 1024×1024 PNG or WebP. Never overwrite an unrelated product image.
+For a new image, use a unique lowercase hyphenated filename such as `midnight-orbit-necklace.png`. Preserve the original Arcade output, then create the storefront asset as a square WebP in `public/products/`. Never overwrite an unrelated product image.
+
+```bash
+cwebp -quiet -q 82 -m 6 original.png -o public/products/midnight-orbit-necklace.webp
+```
+
+Keep each WebP below 200 KB. Update `localAsset` in `data/arcade-products.json` to the `.webp` path.
 
 ## Truthful product states
 
 ### Priced and purchasable
 
-A product may be marked `priced` only when Arcade returned a successful product ID and a guaranteed price. Add its real product ID to `catalog` in `lib/store-catalog.ts`. The server then obtains its current product information from Arcade. Do not reuse a price from a different product and do not invent a maker, material, or manufacturing status.
+A product may be marked `priced` only when Arcade returned a successful product ID and a guaranteed price. Add its real product ID to `catalog` in `lib/store-catalog.ts` and its exact verified price snapshot to `data/arcade-products.json`. The storefront reads this checked-in snapshot and does not call Arcade during page rendering. Do not reuse a price from a different product and do not invent a maker, material, or manufacturing status.
 
-Persist the product render at `public/products/<slug>.png`, add the matching metadata to `data/arcade-products.json`, and add a fallback entry to `fallbackProducts` in `app/storefront.tsx`.
+Persist the optimized storefront render at `public/products/<slug>.webp`, add the matching metadata to `data/arcade-products.json`, and add a fallback entry to `fallbackProducts` in `app/storefront.tsx`.
 
-### Concept or coming soon
+## Image-performance contract
 
-If Arcade returned only a pattern or concept, it is not purchasable. Give it `availability: "concept"`, keep `price: null`, label it **Coming soon**, and keep its checkout action disabled. A concept image may be displayed as Arcade-generated concept art, but it must not be described as a manufacturable product render.
+- The homepage and `/api/catalog` must remain static and must not call `getProduct` or any Arcade endpoint.
+- Existing product images must load from Vercel under `/products/<slug>.webp`.
+- The hero image is preloaded and uses eager loading with high fetch priority.
+- Product-grid images use native lazy loading and asynchronous decoding.
+- Run `npm test` before every deployment. The tests enforce asset presence, byte budgets, loading attributes, static catalog reads, and removal of unsupported collections.
+- If the loading lifecycle changes, update `specs/ImageLoading.tla` and run TLC with `specs/ImageLoading.cfg`.
 
-Arcade did not expose a bracelet manufacturing category during the October 11, 2026 API probe. Until that changes, bracelet imagery stays in the concept state even when the image was generated from a bracelet prompt.
+### Pattern-only or concept output
+
+Do not add pattern-only or concept imagery to the live storefront. The current catalog contains only successfully generated engagement and after-dark products with real Arcade product IDs and verified price snapshots.
 
 ## Fast contribution workflow
 
@@ -96,6 +109,7 @@ npm install
 Make the requested source changes and copy image assets into `public/products/`. Then validate:
 
 ```bash
+npm test
 npm run build
 git diff --check
 rg -n --hidden --glob '!.git/**' 'arcade''_sk_|ghp''_|github''_pat_' .
@@ -141,7 +155,7 @@ Verify the deployed site, catalog, and every newly added image on Vercel rather 
 ```bash
 curl -I https://fated-and-forged.vercel.app
 curl -fsS https://fated-and-forged.vercel.app/api/catalog
-curl -I https://fated-and-forged.vercel.app/products/<new-image-name>.png
+curl -I https://fated-and-forged.vercel.app/products/<new-image-name>.webp
 ```
 
 Confirm that:
@@ -149,8 +163,7 @@ Confirm that:
 - The homepage and image URLs return HTTP 200.
 - The new catalog entries appear in `/api/catalog`.
 - Real products show their own Arcade price.
-- Concepts show `price: null`, `availability: "concept"`, and **Coming soon**.
-- Concepts cannot be added to the bag.
+- Every displayed product has its own real Arcade product ID and verified price snapshot.
 - `git rev-parse HEAD` matches `git ls-remote origin refs/heads/main` after a direct-to-main release.
 
 ## Copy-paste prompt for a no-GitHub partner agent
@@ -167,13 +180,13 @@ Use the temporary Vercel token already supplied in your environment as VERCEL_TO
 
 Download and extract the source bundle into a new directory. Read docs/HACKATHON_AGENT_CONTRIBUTING.md and docs/PARTNER_PRODUCT_HANDOFF.md completely before editing.
 
-Add our Arcade jewelry images to public/products/ with unique lowercase hyphenated filenames. Update lib/store-catalog.ts, data/arcade-products.json, and the fallback products in app/storefront.tsx as appropriate.
+Add our Arcade jewelry images to public/products/ as WebPs with unique lowercase hyphenated filenames. Keep each storefront image under 200 KB. Update lib/store-catalog.ts, data/arcade-products.json, and the fallback products in app/storefront.tsx as appropriate.
 
-A piece is purchasable only if Arcade returned a successful product ID and that piece's guaranteed price. Never invent or transfer pricing, maker, material, product ID, or manufacturing status. Pattern-only and bracelet outputs must remain concepts with price null, “Arcade-generated concept art,” “Coming soon,” and disabled checkout.
+A piece is publishable only if Arcade returned a successful product ID and that piece's guaranteed price. Never invent or transfer pricing, maker, material, product ID, or manufacturing status. Do not add pattern-only or concept outputs to the storefront.
 
 You may make the agreed layout, copy, styling, and functionality changes. Preserve unrelated behavior and the responsive design.
 
-Run npm run build and the secret scan in the contributor guide. Resolve all failures. Then run npm run contributor-kit so your updated source is included in the production deployment for the next contributor.
+Do not add an Arcade request to page rendering or `/api/catalog`; existing images and verified product snapshots must be served by Vercel. Run npm test, npm run build, and the secret scan in the contributor guide. Resolve all failures. Then run npm run contributor-kit so your updated source is included in the production deployment for the next contributor.
 
 Link only to the existing Vercel project with:
 npx vercel link --yes --team team_m2GV3vYmjMXTChccVmkqej0D --project prj_X8d6vk7FD0N7dDeahNcEYutydIrI --token "$VERCEL_TOKEN"
@@ -183,7 +196,7 @@ npx vercel deploy --prod --yes --logs --token "$VERCEL_TOKEN"
 
 Do not create a new Vercel project. Confirm the deployment is aliased to https://fated-and-forged.vercel.app.
 
-Verify the homepage, /api/catalog, every new image URL, product pricing states, and disabled checkout for concepts. Report the production URL, deployment ID, changed files, and verification results.
+Verify the homepage, /api/catalog, every new image URL, and product pricing states. Report the production URL, deployment ID, changed files, and verification results.
 ```
 
 ## Copy-paste prompt for a GitHub partner agent
@@ -200,8 +213,9 @@ First read docs/HACKATHON_AGENT_CONTRIBUTING.md and docs/PARTNER_PRODUCT_HANDOFF
 Your task is to add our Arcade-generated jewelry and any agreed storefront changes.
 
 For each image:
-- Save the final image in public/products/ using a unique lowercase hyphenated filename.
-- Prefer the highest-resolution Arcade output, ideally 1024×1024.
+- Preserve the highest-resolution Arcade output, ideally 1024×1024.
+- Convert the storefront copy to WebP and save it in public/products/ using a unique lowercase hyphenated filename.
+- Keep the WebP under 200 KB.
 - Do not overwrite an existing product asset.
 
 For each real product:
@@ -212,13 +226,9 @@ For each real product:
 - Add the matching fallback entry to app/storefront.tsx.
 - Never invent or transfer a price, maker, material, product ID, or manufacturing status.
 
-For any pattern-only output or bracelet concept:
-- Mark it availability "concept" with price null.
-- Label it "Arcade-generated concept art" and "Coming soon."
-- Keep Add to bag and checkout disabled.
-- Do not describe it as a manufacturable product render.
+Do not add pattern-only or concept outputs to the live catalog.
 
-Preserve the existing visual design and responsive behavior. Run npm run build, git diff --check, and a repository secret scan before committing. Commit only the intended files.
+Do not add Arcade requests to page rendering or `/api/catalog`. Preserve the existing visual design and responsive behavior. Run npm test, npm run build, git diff --check, and a repository secret scan before committing. Commit only the intended files.
 
 Use a short-lived branch and pull request by default. If I explicitly tell you to use the hackathon fast lane, rebase on origin/main and push your tested commit directly to main.
 

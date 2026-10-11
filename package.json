@@ -9,6 +9,7 @@
   "scripts": {
     "contributor-kit": "bash scripts/build-contributor-kit.sh",
     "install:ci": "node scripts/install-ci.mjs",
+    "test": "node --test tests/*.test.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

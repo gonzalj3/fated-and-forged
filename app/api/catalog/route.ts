@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
-import { getProduct } from "@/lib/arcade";
-import { braceletConcepts, catalog, presentBraceletConcept, presentProduct } from "@/lib/store-catalog";
+import productArchive from "@/data/arcade-products.json";
+import { catalog, presentArchivedProduct } from "@/lib/store-catalog";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 
-export async function GET() {
+export function GET() {
   try {
-    const pricedProducts = await Promise.all(catalog.map(async (definition) => presentProduct(definition, await getProduct(definition.productId))));
-    const products = [...pricedProducts, ...braceletConcepts.map(presentBraceletConcept)];
-    return NextResponse.json({ products }, { headers: { "Cache-Control": "private, max-age=60" } });
+    const products = catalog.map((definition) => {
+      const archived = productArchive.find((product) => product.productId === definition.productId);
+      if (!archived) throw new Error(`Missing archived product ${definition.productId}`);
+      return presentArchivedProduct(definition, archived);
+    });
+    return NextResponse.json({ products }, { headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load the atelier" }, { status: 502 });
   }

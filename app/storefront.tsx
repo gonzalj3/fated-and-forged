@@ -1,17 +1,17 @@
 "use client";
 
 import { ArrowDown, ArrowRight, Asterisk, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
+import productArchive from "@/data/arcade-products.json";
 
 type Product = {
   productId: string; slug: string; name: string; subtitle: string;
-  collection: "engagement" | "kinky" | "bracelets"; signs: string; imageUrl: string;
+  collection: "engagement" | "kinky"; signs: string; imageUrl: string;
   images: { url: string }[]; material: string; maker: string;
   description: string; price: { amount: string; currency: string } | null;
-  availability?: "priced" | "concept";
+  availability?: "priced";
 };
 type CartLine = Product & { quantity: number };
-type CatalogResponse = { products?: Product[] };
 type CheckoutResponse = { checkoutUrl?: string };
 type DesignResponse = { jobId?: string; error?: string };
 type DesignJobResponse = {
@@ -41,17 +41,22 @@ const fallbackProducts = [
   { productId: "pending-velvet-rule", slug: "velvet-rule-necklace", name: "Velvet Rule", subtitle: "Soft power, beautifully worn", collection: "kinky", signs: "Cancer × Capricorn", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "A soft crescent rests beneath an architectural peak—a quiet emblem of care, structure, and chosen control.", price: null },
   { productId: "pending-balanced-heat", slug: "balanced-heat-necklace", name: "Balanced Heat", subtitle: "Equal parts spark and surrender", collection: "kinky", signs: "Aries × Libra", imageUrl: "", images: [], material: "14k Rose Gold", maker: "Arcade maker network", description: "A sculptural flame slips through a polished balance ring—heat and harmony held in one private symbol.", price: null },
   { productId: "pending-afterglow-link", slug: "afterglow-link-necklace", name: "Afterglow Link", subtitle: "Made for the hours after midnight", collection: "kinky", signs: "Leo × Pisces", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "A radiant edge dissolves into a liquid curve and one open link, capturing the charged calm after midnight.", price: null },
-  { productId: "concept-cmv47xock006xpa10s1t3s6o4", slug: "equinox-cuff-bracelet", name: "Equinox Cuff", subtitle: "Opposites, held in perfect tension", collection: "bracelets", signs: "Aries × Libra", imageUrl: "", images: [], material: "Gold vermeil direction", maker: "Arcade concept study", description: "An open cuff balancing a sculptural flame against a quiet horizon, with a private celestial engraving inside.", price: null, availability: "concept" },
-  { productId: "concept-cmv480zrv00itpb10qi1lnm0q", slug: "lunar-backbone-bracelet", name: "Lunar Backbone", subtitle: "Softness with structure", collection: "bracelets", signs: "Cancer × Capricorn", imageUrl: "", images: [], material: "Sterling silver direction", maker: "Arcade concept study", description: "A polished cuff where a moonlit curve rises into a restrained mountain ridge—tenderness with a backbone.", price: null, availability: "concept" },
-  { productId: "concept-cmv4813kp00ahlg101f4mdz94", slug: "true-north-wrap-bracelet", name: "True North Wrap", subtitle: "For the pair that keeps moving", collection: "bracelets", signs: "Gemini × Sagittarius", imageUrl: "", images: [], material: "Rose gold direction", maker: "Arcade concept study", description: "Twin paths circle the wrist before meeting at a miniature compass star and arrow.", price: null, availability: "concept" },
-  { productId: "concept-cmv4810xt00fylm10127evaoj", slug: "tidal-thorn-bracelet", name: "Tidal Thorn", subtitle: "A beautiful kind of danger", collection: "bracelets", signs: "Scorpio × Pisces", imageUrl: "", images: [], material: "Sterling silver direction", maker: "Arcade concept study", description: "A darkly polished wave wraps into one elegant thorn, intimate and dangerous without saying too much.", price: null, availability: "concept" },
-  { productId: "concept-cmv4813d7007ppa10nf4j8h12", slug: "sun-current-bracelet", name: "Sun Current", subtitle: "Radiance that refuses a cage", collection: "bracelets", signs: "Leo × Aquarius", imageUrl: "", images: [], material: "Gold vermeil direction", maker: "Arcade concept study", description: "A radiant sun sends two electric currents around the wrist in a bold open silhouette.", price: null, availability: "concept" },
-  { productId: "concept-cmv4812o200ixpb10c2wwxhhe", slug: "rooted-orbit-bracelet", name: "Rooted Orbit", subtitle: "Grounded enough to grow", collection: "bracelets", signs: "Taurus × Virgo", imageUrl: "", images: [], material: "Yellow gold direction", maker: "Arcade concept study", description: "A slender orbit carries tiny wheat leaves and a single earth-toned stone like a shared garden.", price: null, availability: "concept" },
-].map((product) => product.availability === "concept" ? {
-  ...product,
-  imageUrl: `/products/${product.slug}.png`,
-  images: [{ url: `/products/${product.slug}.png` }],
-} : product) as Product[];
+].map((product) => {
+  const archived = productArchive.find((item) => item.slug === product.slug);
+  if (!archived) throw new Error(`Missing archived product data for ${product.slug}`);
+  const [amount, currency] = archived.price.split(" ");
+  const imageUrl = `/products/${product.slug}.webp`;
+  return {
+    ...product,
+    productId: archived.productId,
+    imageUrl,
+    images: [{ url: imageUrl }],
+    material: archived.material,
+    maker: archived.maker,
+    price: { amount, currency },
+    availability: "priced",
+  };
+}) as Product[];
 
 const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 
@@ -60,20 +65,14 @@ function money(price: Product["price"]) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: price.currency, maximumFractionDigits: 0 }).format(Number(price.amount));
 }
 
-function productPrice(product: Product) {
-  return product.availability === "concept" ? "Coming soon" : money(product.price);
-}
-
-function ProductArtwork({ product, index }: { product: Product; index: number }) {
-  if (product.availability === "concept" && product.imageUrl) return <div className="concept-image"><img src={product.imageUrl} alt={`${product.name}, Arcade-generated bracelet concept artwork`} className="product-image" /><span>Arcade-generated concept art</span><b>Coming soon</b></div>;
-  if (product.imageUrl) return <img src={product.imageUrl} alt={`${product.name}, ${product.material}`} className="product-image" />;
-  if (product.availability === "concept") return <div className={`concept-art concept-art-${index % 3}`} aria-label={`${product.name}, bracelet concept coming soon`}><div className="bracelet-shape"><i /><i /></div><span>Arcade concept study</span><b>Coming soon</b></div>;
-  return <div className={`placeholder-art placeholder-art-${index % 4}`} aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
+function ProductArtwork({ product, priority = false }: { product: Product; priority?: boolean }) {
+  if (product.imageUrl) return <img src={product.imageUrl} alt={`${product.name}, ${product.material}`} className="product-image" width={1024} height={1024} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" />;
+  return <div className="placeholder-art" aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
 }
 
 export default function Storefront() {
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
-  const [activeCollection, setActiveCollection] = useState<"all" | "engagement" | "kinky" | "bracelets">("all");
+  const [activeCollection, setActiveCollection] = useState<"all" | "engagement" | "kinky">("all");
   const [selected, setSelected] = useState<Product | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -83,13 +82,11 @@ export default function Storefront() {
   const [designState, setDesignState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [designMessage, setDesignMessage] = useState("");
 
-  useEffect(() => { fetch("/api/catalog").then((response) => response.ok ? response.json() as Promise<CatalogResponse> : Promise.reject()).then((data) => data.products?.length && setProducts(data.products)).catch(() => undefined); }, []);
   const visibleProducts = useMemo(() => activeCollection === "all" ? products : products.filter((product) => product.collection === activeCollection), [products, activeCollection]);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + Number(item.price?.amount || 0) * item.quantity, 0);
 
   function addToCart(product: Product) {
-    if (product.productId.startsWith("pending-") || product.availability === "concept") return;
     setCart((current) => { const found = current.find((item) => item.productId === product.productId); return found ? current.map((item) => item.productId === product.productId ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { ...product, quantity: 1 }]; });
     setSelected(null); setCartOpen(true);
   }
@@ -125,12 +122,12 @@ export default function Storefront() {
   }
 
   return <main>
-    <div className="announcement">Rings + necklaces: priced by Arcade <span>✦</span> Bracelets: concept art, coming soon</div>
+    <div className="announcement">Generated by Arcade <span>✦</span> Made to order by independent artisans</div>
     <header className="site-header">
       <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu /></button>
       <a href="#top" className="brand" aria-label="Fated and Forged home"><span>FATED</span><i>×</i><span>FORGED</span></a>
       <nav className={menuOpen ? "nav-open" : ""} aria-label="Primary navigation">
-        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>Engagement</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>Kinky</a><a href="#shop" onClick={() => { setActiveCollection("bracelets"); setMenuOpen(false); }}>Bracelets</a><a href="#story" onClick={() => setMenuOpen(false)}>Our story</a><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
+        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>Engagement</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>Kinky</a><a href="#story" onClick={() => setMenuOpen(false)}>Our story</a><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
       </nav>
       <button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Open cart with ${cartCount} items`}><ShoppingBag size={19} strokeWidth={1.5} /><span>Bag</span><b>{cartCount}</b></button>
     </header>
@@ -145,27 +142,26 @@ export default function Storefront() {
       </div>
       <div className="hero-visual" aria-label="Celestial jewelry composition">
         <div className="zodiac-wheel">{signs.map((sign, index) => <span key={sign} style={{ "--i": index } as React.CSSProperties}>{sign.slice(0, 2)}</span>)}<div className="wheel-center"><i>∞</i><small>YOUR<br />ORBIT</small></div></div>
-        <div className="hero-product-card"><span className="card-index">THE FIRST DROP / 01</span><ProductArtwork product={products[0]} index={0} /><div><b>{products[0].name}</b><span>{products[0].signs}</span></div></div><div className="floating-glyph glyph-one">♌</div><div className="floating-glyph glyph-two">♒</div>
+        <div className="hero-product-card"><span className="card-index">THE FIRST DROP / 01</span><ProductArtwork product={products[0]} priority /><div><b>{products[0].name}</b><span>{products[0].signs}</span></div></div><div className="floating-glyph glyph-one">♌</div><div className="floating-glyph glyph-two">♒</div>
       </div>
     </section>
 
     <section className="manifesto" id="story"><p>Not your birth chart on a charm.</p><h2>We translate the tension between two people into an object worth keeping.</h2><div className="manifesto-details"><span>Designed with AI</span><span>Made by hand</span><span>Priced instantly</span><span>Shipped on demand</span></div></section>
 
     <section className="shop-section" id="shop">
-      <div className="shop-heading"><div><p className="eyebrow"><Asterisk size={13} /> The first drop</p><h2>Choose your constellation.</h2></div><div className="collection-tabs" role="tablist" aria-label="Filter products">{(["all", "engagement", "kinky", "bracelets"] as const).map((collection) => <button key={collection} className={activeCollection === collection ? "active" : ""} onClick={() => setActiveCollection(collection)}>{collection === "all" ? "All pieces" : collection}</button>)}</div></div>
-      {activeCollection === "bracelets" && <div className="concept-notice"><Sparkles size={17} /><p><strong>Bracelet Concept Lab</strong> The images below are Arcade-generated concept art. Arcade’s API does not yet offer a bracelet manufacturing category or guaranteed bracelet prices, so every bracelet is marked coming soon and cannot be purchased yet.</p></div>}
-      <div className="product-grid">{visibleProducts.map((product, index) => <article className="product-card" key={product.productId}><button className="product-art" onClick={() => setSelected(product)} aria-label={`View ${product.name}`}><ProductArtwork product={product} index={index} /><span className="product-collection">{product.collection}{product.availability === "concept" ? " · concept" : ""}</span><span className="quick-view">View piece <ArrowRight size={15} /></span></button><div className="product-info"><div><h3>{product.name}</h3><p>{product.signs}</p></div><span>{productPrice(product)}</span></div><p className="product-subtitle">{product.subtitle}</p></article>)}</div>
+      <div className="shop-heading"><div><p className="eyebrow"><Asterisk size={13} /> The first drop</p><h2>Choose your constellation.</h2></div><div className="collection-tabs" role="tablist" aria-label="Filter products">{(["all", "engagement", "kinky"] as const).map((collection) => <button key={collection} className={activeCollection === collection ? "active" : ""} onClick={() => setActiveCollection(collection)}>{collection === "all" ? "All pieces" : collection}</button>)}</div></div>
+      <div className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.productId}><button className="product-art" onClick={() => setSelected(product)} aria-label={`View ${product.name}`}><ProductArtwork product={product} /><span className="product-collection">{product.collection}</span><span className="quick-view">View piece <ArrowRight size={15} /></span></button><div className="product-info"><div><h3>{product.name}</h3><p>{product.signs}</p></div><span>{money(product.price)}</span></div><p className="product-subtitle">{product.subtitle}</p></article>)}</div>
     </section>
 
-    <section className="two-worlds"><article className="world world-light"><span>01 / ENGAGEMENT</span><h2>The promise,<br />reimagined.</h2><p>Quietly symbolic settings built around the way your signs attract, challenge, and steady each other.</p><button onClick={() => { setActiveCollection("engagement"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article><article className="world world-dark"><span>02 / AFTER DARK</span><h2>Codes only<br />you two know.</h2><p>Collars, locks, links, and celestial symbols rendered as elegant daily jewelry. Suggestive, never obvious.</p><button onClick={() => { setActiveCollection("kinky"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article><article className="world world-concept"><span>03 / BRACELET LAB</span><h2>A new orbit,<br />coming soon.</h2><p>Six Arcade-assisted directions for the wrist. Concept-only until bracelet manufacturing and guaranteed pricing arrive.</p><button onClick={() => { setActiveCollection("bracelets"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>See the studies <ArrowRight size={16} /></button></article></section>
+    <section className="two-worlds"><article className="world world-light"><span>01 / ENGAGEMENT</span><h2>The promise,<br />reimagined.</h2><p>Quietly symbolic settings built around the way your signs attract, challenge, and steady each other.</p><button onClick={() => { setActiveCollection("engagement"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article><article className="world world-dark"><span>02 / AFTER DARK</span><h2>Codes only<br />you two know.</h2><p>Collars, locks, links, and celestial symbols rendered as elegant daily jewelry. Suggestive, never obvious.</p><button onClick={() => { setActiveCollection("kinky"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article></section>
 
     <section className="design-section"><div className="design-orbit">♏ <span>+</span> ♉</div><div><p className="eyebrow"><Asterisk size={13} /> The couple’s atelier</p><h2>What if your story<br />became the jewelry?</h2><p>Tell us your signs, your shared energy, and how bold you want to be. Arcade turns the prompt into a manufacturable piece with a real price.</p><button className="primary-button inverse" onClick={() => setDesignOpen(true)}>Design with the stars <Sparkles size={16} /></button></div></section>
 
     <footer><div className="footer-brand"><span>FATED</span><i>×</i><span>FORGED</span></div><p>Jewelry made for the space between you.</p><div className="footer-meta"><span>Made on demand with Arcade</span><span>© 2026 Fated & Forged</span><a href="https://www.arcade.ai" target="_blank" rel="noreferrer">About Arcade ↗</a></div></footer>
 
-    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}><section className="product-modal" role="dialog" aria-modal="true" aria-label={selected.name} onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setSelected(null)} aria-label="Close"><X /></button><div className="modal-art"><ProductArtwork product={selected} index={products.indexOf(selected)} /></div><div className="modal-copy"><p className="eyebrow"><Asterisk size={13} /> {selected.collection} collection</p><h2>{selected.name}</h2><p className="modal-signs">{selected.signs}</p><p className="modal-description">{selected.description}</p>{selected.availability === "concept" ? <dl><div><dt>Direction</dt><dd>{selected.material}</dd></div><div><dt>Status</dt><dd>Coming soon</dd></div><div><dt>Pricing</dt><dd>Not yet available</dd></div></dl> : <dl><div><dt>Material</dt><dd>{selected.material}</dd></div><div><dt>Made by</dt><dd>{selected.maker}</dd></div><div><dt>Production</dt><dd>Made to order</dd></div></dl>}<div className="modal-buy"><strong>{productPrice(selected)}</strong><button className="primary-button" onClick={() => addToCart(selected)} disabled={selected.productId.startsWith("pending-") || selected.availability === "concept"}>{selected.availability === "concept" ? "Coming soon" : selected.productId.startsWith("pending-") ? "Arcade is pricing" : "Add to bag"} <ArrowRight size={16} /></button></div></div></section></div>}
+    {selected && <div className="modal-backdrop" onMouseDown={() => setSelected(null)}><section className="product-modal" role="dialog" aria-modal="true" aria-label={selected.name} onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setSelected(null)} aria-label="Close"><X /></button><div className="modal-art"><ProductArtwork product={selected} priority /></div><div className="modal-copy"><p className="eyebrow"><Asterisk size={13} /> {selected.collection} collection</p><h2>{selected.name}</h2><p className="modal-signs">{selected.signs}</p><p className="modal-description">{selected.description}</p><dl><div><dt>Material</dt><dd>{selected.material}</dd></div><div><dt>Made by</dt><dd>{selected.maker}</dd></div><div><dt>Production</dt><dd>Made to order</dd></div></dl><div className="modal-buy"><strong>{money(selected.price)}</strong><button className="primary-button" onClick={() => addToCart(selected)}>Add to bag <ArrowRight size={16} /></button></div></div></section></div>}
 
-    {cartOpen && <div className="drawer-backdrop" onMouseDown={() => setCartOpen(false)}><aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Shopping bag" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>Your orbit</h2><button className="close-button" onClick={() => setCartOpen(false)} aria-label="Close"><X /></button></div>{cart.length === 0 ? <div className="empty-cart"><div>☾</div><h3>Nothing in orbit yet.</h3><p>Choose a piece that feels written for you.</p><button className="primary-button" onClick={() => setCartOpen(false)}>Explore the drop</button></div> : <><div className="cart-lines">{cart.map((item) => <div className="cart-line" key={item.productId}><div className="cart-thumb"><ProductArtwork product={item} index={0} /></div><div><h3>{item.name}</h3><p>{item.material}</p><div className="quantity"><button onClick={() => changeQuantity(item.productId, -1)} aria-label="Decrease quantity"><Minus size={13} /></button><span>{item.quantity}</span><button onClick={() => changeQuantity(item.productId, 1)} aria-label="Increase quantity"><Plus size={13} /></button></div></div><strong>{money(item.price)}</strong></div>)}</div><div className="cart-summary"><div><span>Subtotal</span><strong>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cartTotal)}</strong></div><p>Shipping and taxes calculated by Arcade at checkout.</p>{checkoutState === "error" && <p className="error-text">Checkout couldn’t be created. Please try again.</p>}<button className="primary-button checkout-button" onClick={checkout} disabled={checkoutState === "loading"}>{checkoutState === "loading" ? <LoaderCircle className="spin" size={18} /> : "Checkout with Arcade"}<ArrowRight size={17} /></button></div></>}</aside></div>}
+    {cartOpen && <div className="drawer-backdrop" onMouseDown={() => setCartOpen(false)}><aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Shopping bag" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>Your orbit</h2><button className="close-button" onClick={() => setCartOpen(false)} aria-label="Close"><X /></button></div>{cart.length === 0 ? <div className="empty-cart"><div>☾</div><h3>Nothing in orbit yet.</h3><p>Choose a piece that feels written for you.</p><button className="primary-button" onClick={() => setCartOpen(false)}>Explore the drop</button></div> : <><div className="cart-lines">{cart.map((item) => <div className="cart-line" key={item.productId}><div className="cart-thumb"><ProductArtwork product={item} /></div><div><h3>{item.name}</h3><p>{item.material}</p><div className="quantity"><button onClick={() => changeQuantity(item.productId, -1)} aria-label="Decrease quantity"><Minus size={13} /></button><span>{item.quantity}</span><button onClick={() => changeQuantity(item.productId, 1)} aria-label="Increase quantity"><Plus size={13} /></button></div></div><strong>{money(item.price)}</strong></div>)}</div><div className="cart-summary"><div><span>Subtotal</span><strong>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cartTotal)}</strong></div><p>Shipping and taxes calculated by Arcade at checkout.</p>{checkoutState === "error" && <p className="error-text">Checkout couldn’t be created. Please try again.</p>}<button className="primary-button checkout-button" onClick={checkout} disabled={checkoutState === "loading"}>{checkoutState === "loading" ? <LoaderCircle className="spin" size={18} /> : "Checkout with Arcade"}<ArrowRight size={17} /></button></div></>}</aside></div>}
 
     {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
   </main>;

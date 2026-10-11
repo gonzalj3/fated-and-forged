@@ -32,8 +32,8 @@ Rules:
 - Include only products that have a real Arcade product ID and guaranteed price.
 - Do not invent or copy a price, maker, material, product ID, or manufacturing status.
 - Do not include failed or still-running jobs.
-- Use only `engagement` or `kinky` for fulfillable products until Arcade exposes a bracelet manufacturing category.
-- If you generated only a pattern/concept, set availability to `concept`, omit arcadeProductId, include arcadePatternId, and state clearly that it is not purchasable.
+- Use only `engagement` or `kinky` for products intended for this storefront.
+- Do not import pattern-only or concept imagery into the live catalog. Omit it from the handoff instead.
 - Make the asset URL available long enough for the receiving agent to download it; signed URLs can expire.
 ```
 

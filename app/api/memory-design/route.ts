@@ -17,13 +17,15 @@ export async function POST(request: Request) {
     const capturedAt = String(body.capturedAt || "");
     const material = String(body.material || "");
     const jewelryType = String(body.jewelryType || "") as keyof typeof categories;
+    const visualDescription = String(body.visualDescription || "").trim().slice(0, 1_200);
     const palette = Array.isArray(body.palette) ? body.palette.map(String).filter((color) => /^#[0-9a-f]{6}$/i.test(color)).slice(0, 5) : [];
 
     if (memory.length < 10 || memory.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(capturedAt) || !materials.has(material) || !Object.hasOwn(categories, jewelryType) || palette.length === 0) {
       return NextResponse.json({ error: "Please add a photo, its date, and the memory you want to preserve" }, { status: 400 });
     }
 
-    const prompt = `A refined ${material} custom ${jewelryType} inspired by a treasured photograph and memory. Memory: ${memory}. The photograph was captured on ${capturedAt}; encode that date subtly through engraving, stone count, spacing, or geometry. Use its dominant color palette (${palette.join(", ")}) as gemstone and finish inspiration. Create an abstract, intimate keepsake rather than a literal image reproduction. Elegant, manufacturable, durable, and wearable every day.`;
+    const visualContext = visualDescription ? ` A vision model described the photograph as: ${visualDescription}. Translate its visible subjects, setting, mood, shapes, and meaningful objects into subtle design motifs.` : "";
+    const prompt = `A refined ${material} custom ${jewelryType} inspired by a treasured photograph and memory. Memory: ${memory}.${visualContext} The photograph was captured on ${capturedAt}; encode that date subtly through engraving, stone count, spacing, or geometry. Use its dominant color palette (${palette.join(", ")}) as gemstone and finish inspiration. Create an abstract, intimate keepsake rather than a literal image reproduction. Elegant, manufacturable, durable, and wearable every day.`;
     const result = await arcadeRequest<Job>("/patterns/create", {
       requestId: `fated-memory-${randomUUID()}`,
       prompt,

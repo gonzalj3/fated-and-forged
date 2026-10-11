@@ -18,14 +18,14 @@ Fated & Forged turns a couple's zodiac pairing and shared story into made-to-ord
 
 ## Local development
 
-Requirements: Node.js 22 or later and an Arcade API key.
+Requirements: Node.js 22 or later, an Arcade API key, and a DeepSeek API key for optional photo analysis.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Set `ARCADE_API_KEY` in your local environment. Never commit it.
+Set `ARCADE_API_KEY` and `DEEPSEEK_API_KEY` in your local environment. Never commit either key. The DeepSeek key is server-only; never expose it through a `NEXT_PUBLIC_` variable.
 
 ## Production
 

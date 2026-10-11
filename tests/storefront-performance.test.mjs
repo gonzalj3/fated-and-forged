@@ -8,6 +8,8 @@ const products = JSON.parse(read("data/arcade-products.json"));
 const storefront = read("app/storefront.tsx");
 const catalog = read("lib/store-catalog.ts");
 const catalogRoute = read("app/api/catalog/route.ts");
+const photoAnalysisRoute = read("app/api/analyze-photo/route.ts");
+const memoryDesignRoute = read("app/api/memory-design/route.ts");
 const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
 const { extendCatalogWithArchive, isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
@@ -44,6 +46,18 @@ test("photo DateTimeOriginal metadata becomes the memory date", () => {
   view.setUint16(40, 0x9003, true); view.setUint16(42, 2, true); view.setUint32(44, 20, true); view.setUint32(48, 44, true);
   view.setUint32(52, 0, true); bytes.write("2026:10:11 14:30:00\0", 56, "ascii");
   assert.equal(extractExifDate(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)), "2026-10-11");
+});
+
+test("photo analysis stays explicit and only its text description is sent to Arcade", () => {
+  assert.match(storefront, /Analyze with DeepSeek/);
+  assert.match(storefront, /fetch\("\/api\/analyze-photo"/);
+  assert.match(storefront, /visualDescription/);
+  assert.match(photoAnalysisRoute, /deepseek-flash/);
+  assert.match(photoAnalysisRoute, /detail: "low"/);
+  assert.match(photoAnalysisRoute, /process\.env\.DEEPSEEK_API_KEY/);
+  assert.doesNotMatch(photoAnalysisRoute, /sk-[a-z0-9]/i);
+  assert.match(memoryDesignRoute, /visualDescription/);
+  assert.doesNotMatch(memoryDesignRoute, /imageDataUrl/);
 });
 
 test("every catalog product has a lightweight local WebP", () => {

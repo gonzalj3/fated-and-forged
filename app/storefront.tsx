@@ -16,6 +16,7 @@ type Product = {
 type CartLine = Product & { quantity: number };
 type CheckoutResponse = { checkoutUrl?: string };
 type DesignResponse = { jobId?: string; error?: string };
+type PhotoAnalysisResponse = { description?: string; error?: string };
 type DesignJobResponse = {
   status?: "running" | "succeeded" | "failed";
   error?: string | { message?: string };
@@ -75,6 +76,22 @@ async function extractPhotoPalette(imageUrl: string) {
   return palette.length ? palette : ["#8b5e6e"];
 }
 
+async function preparePhotoForVision(imageUrl: string) {
+  const image = new Image();
+  image.src = imageUrl;
+  await image.decode();
+  const scale = Math.min(1, 1200 / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not prepare the photo");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 export default function Storefront() {
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
   const [activeCollection, setActiveCollection] = useState<"all" | ProductCollection>("all");
@@ -88,6 +105,10 @@ export default function Storefront() {
   const [memoryDate, setMemoryDate] = useState("");
   const [memoryDateNote, setMemoryDateNote] = useState("");
   const [memoryPalette, setMemoryPalette] = useState<string[]>([]);
+  const [memoryImageDataUrl, setMemoryImageDataUrl] = useState("");
+  const [visualDescription, setVisualDescription] = useState("");
+  const [visionState, setVisionState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [visionMessage, setVisionMessage] = useState("");
   const [memoryState, setMemoryState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [memoryMessage, setMemoryMessage] = useState("");
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "error">("idle");
@@ -147,10 +168,32 @@ export default function Storefront() {
       setMemoryPreview(preview);
       setMemoryDate(exifDate || fallbackDate);
       setMemoryDateNote(exifDate ? "Capture date found in photo metadata" : "No EXIF capture date found—please check the suggested file date");
-      setMemoryPalette(await extractPhotoPalette(preview));
+      const [palette, imageDataUrl] = await Promise.all([extractPhotoPalette(preview), preparePhotoForVision(preview)]);
+      setMemoryPalette(palette);
+      setMemoryImageDataUrl(imageDataUrl);
+      setVisualDescription(""); setVisionState("idle"); setVisionMessage("");
       setMemoryState("idle"); setMemoryMessage("");
     } catch {
       setMemoryState("error"); setMemoryMessage("We could not read that photo. Try another image.");
+    }
+  }
+
+  async function analyzeMemoryPhoto() {
+    if (!memoryImageDataUrl) { setVisionState("error"); setVisionMessage("Choose a photo first."); return; }
+    setVisionState("loading"); setVisionMessage("");
+    try {
+      const response = await fetch("/api/analyze-photo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageDataUrl: memoryImageDataUrl }),
+      });
+      const data = await response.json() as PhotoAnalysisResponse;
+      if (!response.ok || !data.description) throw new Error(data.error || "Could not analyze this photo");
+      setVisualDescription(data.description);
+      setVisionState("done");
+    } catch (error) {
+      setVisionState("error");
+      setVisionMessage(error instanceof Error ? error.message : "Could not analyze this photo");
     }
   }
 
@@ -160,7 +203,7 @@ export default function Storefront() {
     setMemoryState("loading"); setMemoryMessage("");
     const details = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
     try {
-      const response = await fetch("/api/memory-design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, capturedAt: memoryDate, palette: memoryPalette }) });
+      const response = await fetch("/api/memory-design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, capturedAt: memoryDate, palette: memoryPalette, visualDescription }) });
       const data = await response.json() as DesignResponse;
       if (!response.ok || !data.jobId) throw new Error(data.error || "Could not start the memory design");
       for (let attempt = 0; attempt < 45; attempt += 1) {
@@ -225,6 +268,6 @@ export default function Storefront() {
 
     {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
 
-    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className="design-modal memory-modal" role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll read the capture date and color palette from the photo on this device, then Arcade will turn those details into a manufacturable piece.</p>{memoryState === "done" ? <div className="design-success"><Check /><h3>Your memory is taking shape.</h3><p>{memoryMessage}</p><button className="primary-button" onClick={() => setMemoryOpen(false)}>See it in the atelier</button></div> : <form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div></div></div>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={memoryState === "loading"}>{memoryState === "loading" ? <><LoaderCircle className="spin" size={18} /> Forging your memory…</> : <>Create from this memory <Camera size={16} /></>}</button><small>Your photo stays on this device. Only its date, palette, and your written memory are sent for generation. No purchase is made.</small></form>}</section></div>}
+    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className="design-modal memory-modal" role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll read its date and palette, and DeepSeek can describe the scene before Arcade turns it into a manufacturable piece.</p>{memoryState === "done" ? <div className="design-success"><Check /><h3>Your memory is taking shape.</h3><p>{memoryMessage}</p><button className="primary-button" onClick={() => setMemoryOpen(false)}>See it in the atelier</button></div> : <form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><button type="button" className="vision-button" onClick={analyzeMemoryPhoto} disabled={visionState === "loading"}>{visionState === "loading" ? <><LoaderCircle className="spin" size={14} /> Reading the scene…</> : <><Sparkles size={14} /> Analyze with DeepSeek</>}</button></div></div>}{visionState === "error" && <p className="error-text">{visionMessage}</p>}{(visionState === "done" || visualDescription) && <label>What DeepSeek sees<textarea value={visualDescription} onChange={(event) => setVisualDescription(event.target.value)} maxLength={1200} /><small>Edit anything before this description is sent to Arcade.</small></label>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={memoryState === "loading" || visionState === "loading"}>{memoryState === "loading" ? <><LoaderCircle className="spin" size={18} /> Forging your memory…</> : <>Create from this memory <Camera size={16} /></>}</button><small>The photo is sent to DeepSeek only if you choose Analyze. Arcade receives the description, date, palette, and your memory—not the photo. No purchase is made.</small></form>}</section></div>}
   </main>;
 }

@@ -31,6 +31,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: "deepseek-flash",
+        thinking: { type: "disabled" },
         max_tokens: 220,
         temperature: 0.2,
         messages: [{

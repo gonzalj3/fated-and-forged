@@ -53,6 +53,7 @@ test("photo analysis stays explicit and only its text description is sent to Arc
   assert.match(storefront, /fetch\("\/api\/analyze-photo"/);
   assert.match(storefront, /visualDescription/);
   assert.match(photoAnalysisRoute, /deepseek-flash/);
+  assert.match(photoAnalysisRoute, /thinking: \{ type: "disabled" \}/);
   assert.match(photoAnalysisRoute, /detail: "low"/);
   assert.match(photoAnalysisRoute, /process\.env\.DEEPSEEK_API_KEY/);
   assert.doesNotMatch(photoAnalysisRoute, /sk-[a-z0-9]/i);

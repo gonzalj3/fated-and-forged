@@ -20,7 +20,12 @@ test("bracelet collection is absent from the live storefront", () => {
 
 test("Everyday Stars is accepted while bracelets are rejected from every collection", () => {
   assert.equal(isAllowedProductCandidate({ collection: "everyday-stars", productType: "birth-chart stacking ring" }), true);
-  for (const product of products) assert.equal(isProductCollection(product.collection), true);
+  assert.equal(products.length, 57);
+  assert.equal(products.filter((product) => product.collection === "everyday-stars").length, 20);
+  for (const product of products) {
+    assert.equal(isProductCollection(product.collection), true);
+    assert.equal(isAllowedProductCandidate({ collection: product.collection, productType: `${product.name} ${product.slug}` }), true);
+  }
   for (const collection of productCollections) {
     assert.equal(isAllowedProductCandidate({ collection, productType: "bracelet" }), false);
   }

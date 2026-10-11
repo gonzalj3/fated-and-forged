@@ -1,5 +1,6 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "fated-and-forged",
+  "description": "AI-native astrology jewelry for couples, generated and fulfilled through Arcade.",
   "version": "0.1.0",
   "private": true,
   "engines": {

@@ -47,6 +47,78 @@ export const catalog: CatalogDefinition[] = [
     signs: "Your two signs",
     fallbackDescription: "Two crescent cuffs joined by a delicate chain and finished with subtle constellation engravings.",
   },
+  {
+    productId: "e890ca6b-f372-4031-8673-7199207c4ff4",
+    slug: "equinox-promise-ring",
+    name: "Equinox Promise",
+    subtitle: "Where opposites find their balance",
+    collection: "engagement",
+    signs: "Aries × Libra",
+    fallbackDescription: "A low-set diamond held between a whisper of flame and a balanced horizon—opposites meeting at the equinox.",
+  },
+  {
+    productId: "f2e274b4-cc4d-4b1d-84c2-75ffcabddef2",
+    slug: "moon-meridian-ring",
+    name: "Moon Meridian",
+    subtitle: "Tenderness with a backbone",
+    collection: "engagement",
+    signs: "Cancer × Capricorn",
+    fallbackDescription: "A crescent-soft curve meets a steady mountain line beneath a bright center stone—a study in tenderness and resolve.",
+  },
+  {
+    productId: "557f6ffe-d943-4bd1-8022-50a8d8d390d2",
+    slug: "wild-compass-ring",
+    name: "Wild Compass",
+    subtitle: "Two minds, one true north",
+    collection: "engagement",
+    signs: "Gemini × Sagittarius",
+    fallbackDescription: "Twin bands travel their own paths before meeting beneath a compass star, made for the pair who always finds the way back.",
+  },
+  {
+    productId: "faac0a67-2c95-43b1-904d-b7c976a21417",
+    slug: "ember-garden-ring",
+    name: "Ember Garden",
+    subtitle: "A devotion that keeps growing",
+    collection: "engagement",
+    signs: "Leo × Taurus",
+    fallbackDescription: "Fine sun rays soften into tiny leaves around a bezel-set stone—radiance rooted in something lasting.",
+  },
+  {
+    productId: "f435a223-5250-4430-9b24-deff7ee9999e",
+    slug: "double-dare-necklace",
+    name: "Double Dare",
+    subtitle: "For the pair that never plays it safe",
+    collection: "kinky",
+    signs: "Gemini × Sagittarius",
+    fallbackDescription: "Two elongated links hold each other in tension, finished with a miniature arrow detail for the couple always tempting fate.",
+  },
+  {
+    productId: "eee888e5-5c0f-4f93-9af8-8fdf674b7326",
+    slug: "velvet-rule-necklace",
+    name: "Velvet Rule",
+    subtitle: "Soft power, beautifully worn",
+    collection: "kinky",
+    signs: "Cancer × Capricorn",
+    fallbackDescription: "A soft crescent rests beneath an architectural peak—a quiet emblem of care, structure, and chosen control.",
+  },
+  {
+    productId: "3efc1e0a-304d-4195-9810-1793f05f1a92",
+    slug: "balanced-heat-necklace",
+    name: "Balanced Heat",
+    subtitle: "Equal parts spark and surrender",
+    collection: "kinky",
+    signs: "Aries × Libra",
+    fallbackDescription: "A sculptural flame slips through a polished balance ring—heat and harmony held in one private symbol.",
+  },
+  {
+    productId: "ec8fcc92-7b05-4ca4-a7fa-baebb953d1b2",
+    slug: "afterglow-link-necklace",
+    name: "Afterglow Link",
+    subtitle: "Made for the hours after midnight",
+    collection: "kinky",
+    signs: "Leo × Pisces",
+    fallbackDescription: "A radiant edge dissolves into a liquid curve and one open link, capturing the charged calm after midnight.",
+  },
 ];
 
 export function presentProduct(definition: CatalogDefinition, product: {
@@ -57,6 +129,7 @@ export function presentProduct(definition: CatalogDefinition, product: {
   description: string | null;
   unitPrice: { amount: string; currency: string } | null;
 }) {
+  const persistedImageUrl = `/products/${definition.slug}.png`;
   return {
     productId: definition.productId,
     slug: definition.slug,
@@ -64,8 +137,8 @@ export function presentProduct(definition: CatalogDefinition, product: {
     subtitle: definition.subtitle,
     collection: definition.collection,
     signs: definition.signs,
-    imageUrl: product.imageUrl,
-    images: product.images,
+    imageUrl: persistedImageUrl,
+    images: [{ url: persistedImageUrl }],
     material: product.selections.material || "Made to order",
     maker: product.maker.name || "Arcade maker network",
     description: definition.fallbackDescription,

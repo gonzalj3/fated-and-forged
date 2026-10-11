@@ -11,6 +11,7 @@ const catalogRoute = read("app/api/catalog/route.ts");
 const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
 const { isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
+const { extractExifDate } = await import("../lib/photo-memory.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(storefront, /bracelet/i);
@@ -23,6 +24,18 @@ test("Everyday Stars is accepted while bracelets are rejected from every collect
   for (const collection of productCollections) {
     assert.equal(isAllowedProductCandidate({ collection, productType: "bracelet" }), false);
   }
+});
+
+test("photo DateTimeOriginal metadata becomes the memory date", () => {
+  const bytes = Buffer.alloc(76);
+  bytes.set([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x48, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00]);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 0x8769, true); view.setUint16(24, 4, true); view.setUint32(26, 1, true); view.setUint32(30, 26, true);
+  view.setUint32(34, 0, true); view.setUint16(38, 1, true);
+  view.setUint16(40, 0x9003, true); view.setUint16(42, 2, true); view.setUint32(44, 20, true); view.setUint32(48, 44, true);
+  view.setUint32(52, 0, true); bytes.write("2026:10:11 14:30:00\0", 56, "ascii");
+  assert.equal(extractExifDate(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)), "2026-10-11");
 });
 
 test("every catalog product has a lightweight local WebP", () => {

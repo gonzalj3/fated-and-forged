@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDown, ArrowRight, Asterisk, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { ArrowDown, ArrowRight, Asterisk, Camera, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import productArchive from "@/data/arcade-products.json";
 import type { ProductCollection } from "@/lib/store-catalog";
+import { extractExifDate } from "@/lib/photo-memory";
 
 type Product = {
   productId: string; slug: string; name: string; subtitle: string;
@@ -73,6 +74,31 @@ function ProductArtwork({ product, priority = false }: { product: Product; prior
   return <div className="placeholder-art" aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
 }
 
+async function extractPhotoPalette(imageUrl: string) {
+  const image = new Image();
+  image.src = imageUrl;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = 48;
+  canvas.height = 48;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return ["#8b5e6e"];
+  context.drawImage(image, 0, 0, 48, 48);
+  const pixels = context.getImageData(0, 0, 48, 48).data;
+  const buckets = new Map<string, number>();
+  for (let index = 0; index < pixels.length; index += 16) {
+    if (pixels[index + 3] < 180) continue;
+    const red = Math.round(pixels[index] / 32) * 32;
+    const green = Math.round(pixels[index + 1] / 32) * 32;
+    const blue = Math.round(pixels[index + 2] / 32) * 32;
+    if ((red > 224 && green > 224 && blue > 224) || (red < 32 && green < 32 && blue < 32)) continue;
+    const color = `#${[red, green, blue].map((value) => Math.min(value, 255).toString(16).padStart(2, "0")).join("")}`;
+    buckets.set(color, (buckets.get(color) || 0) + 1);
+  }
+  const palette = [...buckets.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([color]) => color);
+  return palette.length ? palette : ["#8b5e6e"];
+}
+
 export default function Storefront() {
   const [products, setProducts] = useState<Product[]>(fallbackProducts);
   const [activeCollection, setActiveCollection] = useState<"all" | ProductCollection>("all");
@@ -81,6 +107,13 @@ export default function Storefront() {
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [designOpen, setDesignOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [memoryPreview, setMemoryPreview] = useState("");
+  const [memoryDate, setMemoryDate] = useState("");
+  const [memoryDateNote, setMemoryDateNote] = useState("");
+  const [memoryPalette, setMemoryPalette] = useState<string[]>([]);
+  const [memoryState, setMemoryState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [memoryMessage, setMemoryMessage] = useState("");
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "error">("idle");
   const [designState, setDesignState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [designMessage, setDesignMessage] = useState("");
@@ -124,6 +157,54 @@ export default function Storefront() {
     } catch (error) { setDesignState("error"); setDesignMessage(error instanceof Error ? error.message : "Could not start the design."); }
   }
 
+  async function selectMemoryPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/") || file.size > 12_000_000) {
+      setMemoryState("error"); setMemoryMessage("Choose a JPG, PNG, or WebP image under 12 MB."); return;
+    }
+    try {
+      const exifDate = extractExifDate(await file.arrayBuffer());
+      const fallbackDate = file.lastModified ? new Date(file.lastModified).toISOString().slice(0, 10) : "";
+      if (memoryPreview) URL.revokeObjectURL(memoryPreview);
+      const preview = URL.createObjectURL(file);
+      setMemoryPreview(preview);
+      setMemoryDate(exifDate || fallbackDate);
+      setMemoryDateNote(exifDate ? "Capture date found in photo metadata" : "No EXIF capture date found—please check the suggested file date");
+      setMemoryPalette(await extractPhotoPalette(preview));
+      setMemoryState("idle"); setMemoryMessage("");
+    } catch {
+      setMemoryState("error"); setMemoryMessage("We could not read that photo. Try another image.");
+    }
+  }
+
+  async function submitMemoryDesign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!memoryPreview || memoryPalette.length === 0) { setMemoryState("error"); setMemoryMessage("Add a photo before creating the piece."); return; }
+    setMemoryState("loading"); setMemoryMessage("");
+    const details = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
+    try {
+      const response = await fetch("/api/memory-design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, capturedAt: memoryDate, palette: memoryPalette }) });
+      const data = await response.json() as DesignResponse;
+      if (!response.ok || !data.jobId) throw new Error(data.error || "Could not start the memory design");
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+        const jobResponse = await fetch(`/api/job?jobId=${encodeURIComponent(data.jobId)}`);
+        const job = await jobResponse.json() as DesignJobResponse;
+        const jobError = typeof job.error === "string" ? job.error : job.error?.message;
+        if (!jobResponse.ok || job.status === "failed") throw new Error(jobError || "Arcade could not manufacture this memory");
+        if (job.status === "succeeded" && job.product) {
+          const custom: Product = { productId: job.product.productId, slug: `memory-${job.product.productId}`, name: "Your Memory, Forged", subtitle: `Captured ${memoryDate}`, collection: "everyday-stars", signs: "A moment worth wearing", imageUrl: job.product.imageUrl, images: job.product.images || [], material: job.product.selections?.material || details.material, maker: job.product.maker?.name || "Arcade maker network", description: job.product.description || details.memory, price: job.product.unitPrice };
+          setProducts((current) => [custom, ...current]);
+          setActiveCollection("all"); setMemoryState("done");
+          setMemoryMessage("Arcade created and priced a one-of-one piece from your memory, photo palette, and date.");
+          return;
+        }
+      }
+      throw new Error("Your memory is still being crafted. Keep this page open and try again in a moment.");
+    } catch (error) { setMemoryState("error"); setMemoryMessage(error instanceof Error ? error.message : "Could not start the memory design."); }
+  }
+
   return <main>
     <div className="announcement">Generated by Arcade <span>✦</span> Made to order by independent artisans</div>
     <header className="site-header">
@@ -158,7 +239,7 @@ export default function Storefront() {
 
     <section className="two-worlds"><article className="world world-light"><span>01 / ENGAGEMENT</span><h2>The promise,<br />reimagined.</h2><p>Quietly symbolic settings built around the way your signs attract, challenge, and steady each other.</p><button onClick={() => { setActiveCollection("engagement"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article><article className="world world-dark"><span>02 / AFTER DARK</span><h2>Codes only<br />you two know.</h2><p>Collars, locks, links, and celestial symbols rendered as elegant daily jewelry. Suggestive, never obvious.</p><button onClick={() => { setActiveCollection("kinky"); document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }); }}>Enter the collection <ArrowRight size={16} /></button></article></section>
 
-    <section className="design-section"><div className="design-orbit">♏ <span>+</span> ♉</div><div><p className="eyebrow"><Asterisk size={13} /> The couple’s atelier</p><h2>What if your story<br />became the jewelry?</h2><p>Tell us your signs, your shared energy, and how bold you want to be. Arcade turns the prompt into a manufacturable piece with a real price.</p><button className="primary-button inverse" onClick={() => setDesignOpen(true)}>Design with the stars <Sparkles size={16} /></button></div></section>
+    <section className="design-section"><div className="design-orbit">♏ <span>+</span> ♉</div><div><p className="eyebrow"><Asterisk size={13} /> The couple’s atelier</p><h2>What if your story<br />became the jewelry?</h2><p>Choose your path: design from your shared astrology, or turn a photograph and the memory behind it into a one-of-one piece.</p><div className="atelier-actions"><button className="primary-button inverse" onClick={() => setDesignOpen(true)}>Design with the stars <Sparkles size={16} /></button><button className="primary-button memory-button" onClick={() => setMemoryOpen(true)}>Forge a memory <Camera size={16} /></button></div></div></section>
 
     <footer><div className="footer-brand"><span>FATED</span><i>×</i><span>FORGED</span></div><p>Jewelry made for the space between you.</p><div className="footer-meta"><span>Made on demand with Arcade</span><span>© 2026 Fated & Forged</span><a href="https://www.arcade.ai" target="_blank" rel="noreferrer">About Arcade ↗</a></div></footer>
 
@@ -167,5 +248,7 @@ export default function Storefront() {
     {cartOpen && <div className="drawer-backdrop" onMouseDown={() => setCartOpen(false)}><aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Shopping bag" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>Your orbit</h2><button className="close-button" onClick={() => setCartOpen(false)} aria-label="Close"><X /></button></div>{cart.length === 0 ? <div className="empty-cart"><div>☾</div><h3>Nothing in orbit yet.</h3><p>Choose a piece that feels written for you.</p><button className="primary-button" onClick={() => setCartOpen(false)}>Explore the drop</button></div> : <><div className="cart-lines">{cart.map((item) => <div className="cart-line" key={item.productId}><div className="cart-thumb"><ProductArtwork product={item} /></div><div><h3>{item.name}</h3><p>{item.material}</p><div className="quantity"><button onClick={() => changeQuantity(item.productId, -1)} aria-label="Decrease quantity"><Minus size={13} /></button><span>{item.quantity}</span><button onClick={() => changeQuantity(item.productId, 1)} aria-label="Increase quantity"><Plus size={13} /></button></div></div><strong>{money(item.price)}</strong></div>)}</div><div className="cart-summary"><div><span>Subtotal</span><strong>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cartTotal)}</strong></div><p>Shipping and taxes calculated by Arcade at checkout.</p>{checkoutState === "error" && <p className="error-text">Checkout couldn’t be created. Please try again.</p>}<button className="primary-button checkout-button" onClick={checkout} disabled={checkoutState === "loading"}>{checkoutState === "loading" ? <LoaderCircle className="spin" size={18} /> : "Checkout with Arcade"}<ArrowRight size={17} /></button></div></>}</aside></div>}
 
     {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
+
+    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className="design-modal memory-modal" role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll read the capture date and color palette from the photo on this device, then Arcade will turn those details into a manufacturable piece.</p>{memoryState === "done" ? <div className="design-success"><Check /><h3>Your memory is taking shape.</h3><p>{memoryMessage}</p><button className="primary-button" onClick={() => setMemoryOpen(false)}>See it in the atelier</button></div> : <form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div></div></div>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={memoryState === "loading"}>{memoryState === "loading" ? <><LoaderCircle className="spin" size={18} /> Forging your memory…</> : <>Create from this memory <Camera size={16} /></>}</button><small>Your photo stays on this device. Only its date, palette, and your written memory are sent for generation. No purchase is made.</small></form>}</section></div>}
   </main>;
 }

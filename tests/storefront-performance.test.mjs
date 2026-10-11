@@ -23,6 +23,10 @@ test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(catalogRoute, /bracelet/i);
 });
 
+test("the Our Story navigation and section are removed", () => {
+  assert.doesNotMatch(storefront, /href="#story"|id="story"|>Our story</i);
+});
+
 test("Everyday Stars is accepted while bracelets are rejected from every collection", () => {
   assert.equal(isAllowedProductCandidate({ collection: "everyday-stars", productType: "birth-chart stacking ring" }), true);
   assert.equal(products.length, 57);
@@ -87,10 +91,33 @@ test("memory reveal calculates the historical sky locally before showing the pro
   assert.match(celestialClient, /projection: "airy"/);
   assert.match(celestialClient, /follow: "zenith"/);
   assert.match(celestialClient, /celestial\.skyview/);
+  assert.match(celestialClient, /limit: 4\.5/);
+  assert.match(celestialClient, /names: false/);
   assert.doesNotMatch(celestialClient, /fetch\(|https?:\/\//);
   for (const asset of ["d3.min.js", "d3.geo.projection.min.js", "celestial.min.js", "data/stars.6.json", "data/constellations.lines.json"]) {
     assert.equal(existsSync(new URL(`public/celestial/${asset}`, root)), true, `missing local sky asset ${asset}`);
   }
+});
+
+test("custom design entry points reveal the generated Arcade product inside the modal", () => {
+  assert.ok((storefront.match(/setDesignOpen\(true\)/g) || []).length >= 3);
+  assert.match(storefront, /setDesignProduct\(custom\)/);
+  assert.match(storefront, /<ProductArtwork product=\{designProduct\} priority \/>/);
+  assert.match(storefront, /addToCart\(designProduct\)/);
+  assert.match(storefront, /Your chemistry, forged/);
+  assert.doesNotMatch(storefront, /Your stars are aligning/);
+  assert.equal((storefront.match(/>Start over<\/button>/g) || []).length, 2);
+  assert.match(storefront, /onClick=\{restartDesign\}/);
+  assert.match(storefront, /onClick=\{restartMemoryDesign\}/);
+});
+
+test("memory form keeps astronomical inputs behind the scenes", () => {
+  assert.doesNotMatch(storefront, /<label>Time<input/);
+  assert.doesNotMatch(storefront, /<label>UTC offset/);
+  assert.doesNotMatch(storefront, /<label>Latitude|<label>Longitude/);
+  assert.doesNotMatch(storefront, /Capture time found in metadata|No GPS found/);
+  assert.match(storefront, /capturedTime: memoryTime/);
+  assert.match(storefront, /timezoneOffset: memoryTimezoneOffset/);
 });
 
 test("photo analysis runs automatically without revealing its description", () => {

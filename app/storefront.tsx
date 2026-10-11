@@ -100,7 +100,6 @@ function HistoricalSky({ date, time, timezoneOffset, latitude, longitude }: { da
       {mapState === "error" && <span className="sky-map-loading">The star map could not load, but your piece is still being forged.</span>}
     </div>
     <h2 id="memory-title">{displayDate}</h2>
-    <p>{time} {timezoneOffset} · {latitude.toFixed(4)}, {longitude.toFixed(4)}</p>
     <span><LoaderCircle className="spin" size={16} /> Arcade is translating this memory into metal</span>
   </div>;
 }
@@ -168,7 +167,6 @@ export default function Storefront() {
   const [memoryLatitude, setMemoryLatitude] = useState(SAN_FRANCISCO.latitude);
   const [memoryLongitude, setMemoryLongitude] = useState(SAN_FRANCISCO.longitude);
   const [memoryDateNote, setMemoryDateNote] = useState("");
-  const [memorySkyNote, setMemorySkyNote] = useState("No photo metadata yet—using 9:00 PM in San Francisco. You can edit these values.");
   const [memoryPalette, setMemoryPalette] = useState<string[]>([]);
   const [visualDescription, setVisualDescription] = useState("");
   const [visionState, setVisionState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -178,6 +176,7 @@ export default function Storefront() {
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "error">("idle");
   const [designState, setDesignState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [designMessage, setDesignMessage] = useState("");
+  const [designProduct, setDesignProduct] = useState<Product | null>(null);
 
   const visibleProducts = useMemo(() => activeCollection === "all" ? products : products.filter((product) => product.collection === activeCollection), [products, activeCollection]);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -202,7 +201,7 @@ export default function Storefront() {
     try { const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: cart.map(({ productId, quantity }) => ({ productId, quantity })) }) }); const data = await response.json() as CheckoutResponse; if (!response.ok || !data.checkoutUrl) throw new Error(); window.location.href = data.checkoutUrl; } catch { setCheckoutState("error"); }
   }
   async function submitDesign(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setDesignState("loading"); setDesignMessage("");
+    event.preventDefault(); setDesignState("loading"); setDesignMessage(""); setDesignProduct(null);
     const details = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
     try {
       const response = await fetch("/api/design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(details) });
@@ -217,9 +216,10 @@ export default function Storefront() {
         if (job.status === "succeeded" && job.product) {
           const custom: Product = { productId: job.product.productId, slug: `custom-${job.product.productId}`, name: "Your Celestial One-of-One", subtitle: "Generated from your chemistry", collection: details.collection as ProductCollection, signs: `${details.signOne} × ${details.signTwo}`, imageUrl: job.product.imageUrl, images: job.product.images || [], material: job.product.selections?.material || details.material, maker: job.product.maker?.name || "Arcade maker network", description: job.product.description || details.story, price: job.product.unitPrice };
           setProducts((current) => [custom, ...current]);
+          setDesignProduct(custom);
           setActiveCollection("all");
           setDesignState("done");
-          setDesignMessage(`Arcade created and priced your ${details.collection === "engagement" ? "ring" : "necklace"}. It is now the first piece in the atelier below.`);
+          setDesignMessage("Arcade created and priced your one-of-one piece.");
           return;
         }
       }
@@ -251,7 +251,6 @@ export default function Storefront() {
       setMemoryLatitude(latitude);
       setMemoryLongitude(longitude);
       setMemoryDateNote(metadata.date ? "Capture date found in photo metadata" : "No EXIF capture date found—please check the suggested file date");
-      setMemorySkyNote(`${metadata.capturedAt ? "Capture time found in metadata." : "No capture time found—using 9:00 PM."} ${hasGps ? "GPS coordinates found in metadata." : "No GPS found—using San Francisco."} ${metadata.timezoneOffset ? "UTC offset found in metadata." : "Please check the suggested UTC offset."}`);
       setVisualDescription(""); setVisionState("loading");
       const [palette, imageDataUrl] = await Promise.all([extractPhotoPalette(preview), preparePhotoForVision(preview)]);
       setMemoryPalette(palette);
@@ -319,13 +318,42 @@ export default function Storefront() {
     requestAnimationFrame(() => document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }));
   }
 
+  function showDesignInStorefront() {
+    setDesignOpen(false);
+    setActiveCollection(designProduct?.collection || "all");
+    requestAnimationFrame(() => document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }));
+  }
+
+  function restartDesign() {
+    setDesignProduct(null);
+    setDesignState("idle");
+    setDesignMessage("");
+  }
+
+  function restartMemoryDesign() {
+    if (memoryPreview) URL.revokeObjectURL(memoryPreview);
+    setMemoryPreview("");
+    setMemoryDate("");
+    setMemoryTime("21:00");
+    setMemoryTimezoneOffset("-07:00");
+    setMemoryLatitude(SAN_FRANCISCO.latitude);
+    setMemoryLongitude(SAN_FRANCISCO.longitude);
+    setMemoryDateNote("");
+    setMemoryPalette([]);
+    setVisualDescription("");
+    setVisionState("idle");
+    setMemoryProduct(null);
+    setMemoryState("idle");
+    setMemoryMessage("");
+  }
+
   return <main>
     <div className="announcement">Generated by Arcade — Made to order by independent artisans</div>
     <header className="site-header">
       <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu /></button>
       <a href="#top" className="brand" aria-label="Fated and Forged home"><span>FATED</span><i>×</i><span>FORGED</span></a>
       <nav className={menuOpen ? "nav-open" : ""} aria-label="Primary navigation">
-        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>The Proposal</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>After Dark</a><a href="#shop" onClick={() => { setActiveCollection("everyday-stars"); setMenuOpen(false); }}>Everyday Stars</a><a href="#story" onClick={() => setMenuOpen(false)}>Our story</a><button onClick={() => { setMemoryOpen(true); setMenuOpen(false); }}>Photo → jewelry</button><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
+        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>The Proposal</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>After Dark</a><a href="#shop" onClick={() => { setActiveCollection("everyday-stars"); setMenuOpen(false); }}>Everyday Stars</a><button onClick={() => { setMemoryOpen(true); setMenuOpen(false); }}>Photo → jewelry</button><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
       </nav>
       <button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Open cart with ${cartCount} items`}><ShoppingBag size={19} strokeWidth={1.5} /><span>Bag</span><b>{cartCount}</b></button>
     </header>
@@ -344,8 +372,6 @@ export default function Storefront() {
       </div>
     </section>
 
-    <section className="manifesto" id="story"><p>Not your birth chart on a charm.</p><h2>We translate the tension between two people into an object worth keeping.</h2><div className="manifesto-details"><span>Designed with AI</span><span>Made by hand</span><span>Priced instantly</span><span>Shipped on demand</span></div></section>
-
     <section className="shop-section" id="shop">
       <div className="shop-heading"><div><p className="eyebrow"><Asterisk size={13} /> The first drop</p><h2>Choose your constellation.</h2></div><div className="collection-tabs" role="tablist" aria-label="Filter products">{collectionFilters.map((collection) => <button key={collection} className={activeCollection === collection ? "active" : ""} onClick={() => setActiveCollection(collection)}>{collection === "all" ? "All pieces" : collectionLabels[collection]}</button>)}</div></div>
       <div className="product-grid">{visibleProducts.map((product) => <article className="product-card" key={product.productId}><button className="product-art" onClick={() => setSelected(product)} aria-label={`View ${product.name}`}><ProductArtwork product={product} /><span className="product-collection">{collectionLabels[product.collection]}</span><span className="quick-view">View piece <ArrowRight size={15} /></span></button><div className="product-info"><div><h3>{product.name}</h3><p>{product.signs}</p></div><span>{money(product.price)}</span></div><p className="product-subtitle">{product.subtitle}</p></article>)}</div>
@@ -361,7 +387,29 @@ export default function Storefront() {
 
     {cartOpen && <div className="drawer-backdrop" onMouseDown={() => setCartOpen(false)}><aside className="cart-drawer" role="dialog" aria-modal="true" aria-label="Shopping bag" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>Your orbit</h2><button className="close-button" onClick={() => setCartOpen(false)} aria-label="Close"><X /></button></div>{cart.length === 0 ? <div className="empty-cart"><ShoppingBag className="empty-cart-icon" strokeWidth={1} /><h3>Nothing in orbit yet.</h3><p>Choose a piece that feels written for you.</p><button className="primary-button" onClick={() => setCartOpen(false)}>Explore the drop</button></div> : <><div className="cart-lines">{cart.map((item) => <div className="cart-line" key={item.productId}><div className="cart-thumb"><ProductArtwork product={item} /></div><div><h3>{item.name}</h3><p>{item.material}</p><div className="quantity"><button onClick={() => changeQuantity(item.productId, -1)} aria-label="Decrease quantity"><Minus size={13} /></button><span>{item.quantity}</span><button onClick={() => changeQuantity(item.productId, 1)} aria-label="Increase quantity"><Plus size={13} /></button></div></div><strong>{money(item.price)}</strong></div>)}</div><div className="cart-summary"><div><span>Subtotal</span><strong>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cartTotal)}</strong></div><p>Shipping and taxes calculated by Arcade at checkout.</p>{checkoutState === "error" && <p className="error-text">Checkout couldn’t be created. Please try again.</p>}<button className="primary-button checkout-button" onClick={checkout} disabled={checkoutState === "loading"}>{checkoutState === "loading" ? <LoaderCircle className="spin" size={18} /> : "Checkout with Arcade"}<ArrowRight size={17} /></button></div></>}</aside></div>}
 
-    {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
+    {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}>
+      <section className={`design-modal ${designState === "done" ? "memory-modal-reveal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button>
+        {designState === "done" && designProduct ?
+          <div className="memory-product-reveal memory-stage">
+            <div className="memory-result-art"><ProductArtwork product={designProduct} priority /></div>
+            <div className="memory-result-copy">
+              <p className="eyebrow"><Check size={13} /> Your chemistry, forged</p>
+              <h2 id="design-title">{designProduct.name}</h2>
+              <p className="memory-result-sign">{designProduct.signs} / {collectionLabels[designProduct.collection]}</p>
+              <p>{designProduct.description}</p>
+              <dl><div><dt>Material</dt><dd>{designProduct.material}</dd></div><div><dt>Made by</dt><dd>{designProduct.maker}</dd></div><div><dt>Arcade price</dt><dd>{money(designProduct.price)}</dd></div></dl>
+              <p className="memory-saved-note">Added to {collectionLabels[designProduct.collection]} for this session.</p>
+              <div className="memory-result-actions"><button className="primary-button" onClick={() => { setDesignOpen(false); addToCart(designProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showDesignInStorefront}>See it in the collection</button><button className="text-button" onClick={restartDesign}>Start over</button></div>
+            </div>
+          </div> : <>
+            <p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p>
+            <h2 id="design-title">Design your chemistry.</h2>
+            <p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>
+            <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. The finished jewelry will appear here. No purchase is made.</small></form>
+          </>}
+      </section>
+    </div>}
 
     {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}>
       <section className={`design-modal memory-modal ${memoryState === "done" ? "memory-modal-reveal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -372,11 +420,11 @@ export default function Storefront() {
             <div className="memory-result-copy">
               <p className="eyebrow"><Check size={13} /> Your memory, forged</p>
               <h2 id="memory-title">{memoryProduct.name}</h2>
-              <p className="memory-result-sign">{zodiacForDate(memoryDate)} / {memoryDate} at {memoryTime}</p>
+              <p className="memory-result-sign">{zodiacForDate(memoryDate)} / {memoryDate}</p>
               <p>{memoryProduct.description}</p>
               <dl><div><dt>Material</dt><dd>{memoryProduct.material}</dd></div><div><dt>Made by</dt><dd>{memoryProduct.maker}</dd></div><div><dt>Arcade price</dt><dd>{money(memoryProduct.price)}</dd></div></dl>
               <p className="memory-saved-note">Saved to Everyday Stars on this browser.</p>
-              <div className="memory-result-actions"><button className="primary-button" onClick={() => { setMemoryOpen(false); addToCart(memoryProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showMemoryInStorefront}>See it in the collection</button></div>
+              <div className="memory-result-actions"><button className="primary-button" onClick={() => { setMemoryOpen(false); addToCart(memoryProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showMemoryInStorefront}>See it in the collection</button><button className="text-button" onClick={restartMemoryDesign}>Start over</button></div>
             </div>
           </div> : <>
             <p className="eyebrow"><Camera size={13} /> A moment, made tangible</p>
@@ -386,13 +434,6 @@ export default function Storefront() {
               <label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required={!memoryPreview} /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>
               {memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><div className={`vision-status ${visionState}`} aria-live="polite">{visionState === "loading" ? <><LoaderCircle className="spin" size={13} /> Analyzing photo…</> : visionState === "done" ? <><Check size={13} /> Photo analyzed</> : visionState === "error" ? "Photo analysis unavailable" : null}</div></div></div>}
               <label>Date taken<input type="date" value={memoryDate} onChange={(event) => { setMemoryDate(event.target.value); if (memoryLatitude === SAN_FRANCISCO.latitude && memoryLongitude === SAN_FRANCISCO.longitude) setMemoryTimezoneOffset(sanFranciscoOffset(event.target.value)); }} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available, or you can enter it."}</small></label>
-              <div className="memory-sky-options">
-                <label>Time<input name="capturedTime" type="time" value={memoryTime} onChange={(event) => setMemoryTime(event.target.value)} required /></label>
-                <label>UTC offset<input name="timezoneOffset" type="text" value={memoryTimezoneOffset} onChange={(event) => setMemoryTimezoneOffset(event.target.value)} pattern="[+-](0[0-9]|1[0-4]):[0-5][0-9]" placeholder="-07:00" required /></label>
-                <label>Latitude<input name="latitude" type="number" value={memoryLatitude} onChange={(event) => setMemoryLatitude(event.target.value)} min="-90" max="90" step="0.000001" required /></label>
-                <label>Longitude<input name="longitude" type="number" value={memoryLongitude} onChange={(event) => setMemoryLongitude(event.target.value)} min="-180" max="180" step="0.000001" required /></label>
-              </div>
-              <p className="memory-sky-note">{memorySkyNote}</p>
               <label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label>
               <div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>
               {memoryState === "error" && <p className="error-text">{memoryMessage}</p>}

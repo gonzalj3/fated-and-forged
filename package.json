@@ -7,6 +7,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
+    "contributor-kit": "bash scripts/build-contributor-kit.sh",
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "next dev",
     "build": "next build",

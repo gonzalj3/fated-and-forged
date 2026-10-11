@@ -39,6 +39,12 @@ Rules:
 
 The owner can paste the returned JSON into the coding-agent conversation for validation and import.
 
+## Direct production contribution without GitHub
+
+A GitHub account is not required. The owner can provide a temporary Vercel token, and the partner agent can download the current source bundle, edit it, and deploy directly to the existing project. Use the no-GitHub workflow and copy-paste prompt in [`HACKATHON_AGENT_CONTRIBUTING.md`](./HACKATHON_AGENT_CONTRIBUTING.md).
+
+Because a direct Vercel deployment does not update the GitHub repository, the partner agent must run `npm run contributor-kit` before deploying. This republishes the edited source bundle for later recovery. The owner should reconcile the partner's changes into GitHub after the hackathon.
+
 ## Direct GitHub contribution option
 
 For the full edit, image-upload, deployment, and production-verification workflow, see [`HACKATHON_AGENT_CONTRIBUTING.md`](./HACKATHON_AGENT_CONTRIBUTING.md).

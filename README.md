@@ -14,6 +14,7 @@ Fated & Forged turns a couple's zodiac pairing and shared story into made-to-ord
 - A versioned product archive in `data/arcade-products.json`
 - A credential-free partner handoff process in `docs/PARTNER_PRODUCT_HANDOFF.md`
 - A direct contributor and Vercel deployment guide in `docs/HACKATHON_AGENT_CONTRIBUTING.md`
+- A downloadable, credential-free source bundle for no-GitHub contributors
 
 ## Local development
 
@@ -44,3 +45,5 @@ Bracelets are intentionally marked **Coming soon**. Arcade did not expose a brac
 ## Collaborating during the hackathon
 
 Use [`docs/HACKATHON_AGENT_CONTRIBUTING.md`](docs/HACKATHON_AGENT_CONTRIBUTING.md) to let an authorized partner agent upload images, edit the catalog, push changes, and optionally deploy the existing Vercel project. The credential-free product-packet alternative remains in [`docs/PARTNER_PRODUCT_HANDOFF.md`](docs/PARTNER_PRODUCT_HANDOFF.md).
+
+Partners without GitHub can download the current source from `/contributor-kit/fated-and-forged-source.tar.gz` and deploy directly with temporary access to the existing Vercel project. Direct deployments must regenerate the source bundle first so later contributors do not start from stale code.

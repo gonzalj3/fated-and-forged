@@ -1,6 +1,6 @@
 # Hackathon agent contribution guide
 
-This guide lets another person and their coding agent add jewelry images, edit the Fated & Forged storefront, and publish changes during the hackathon.
+This guide lets another person and their coding agent add jewelry images, edit the Fated & Forged storefront, and publish changes during the hackathon. A GitHub account is optional.
 
 - Production: <https://fated-and-forged.vercel.app>
 - GitHub: <https://github.com/gonzalj3/fated-and-forged>
@@ -9,11 +9,51 @@ This guide lets another person and their coding agent add jewelry images, edit t
 
 ## One-time access setup
 
-The repository owner must invite the partner's GitHub username as a collaborator on the private repository. GitHub access is enough to upload images and source changes.
+### Partner without GitHub
+
+The partner can deploy directly with a temporary Vercel token that can access the existing project. The owner creates the token in Vercel, gives it to the partner for the hackathon, and revokes it afterward. Put it in the partner agent's environment as `VERCEL_TOKEN`; do not paste it into source files.
+
+The current source bundle is published at:
+
+```text
+https://fated-and-forged.vercel.app/contributor-kit/fated-and-forged-source.tar.gz
+```
+
+The partner downloads this bundle, edits it, rebuilds the bundle so the next contributor receives the latest source, and deploys it straight to the existing Vercel project. This path changes the live website without GitHub.
+
+### Partner with GitHub
+
+The repository owner invites the partner's GitHub username as a collaborator on the private repository. GitHub access is enough to upload images and source changes.
 
 For the partner to deploy production personally, the owner must also give their Vercel account access to the `fated-and-forged` project. Otherwise, the partner should push the commit to GitHub and ask the owner or owner agent to run the production deployment.
 
 Do not paste an Arcade key, GitHub token, or Vercel token into a prompt, source file, commit, issue, or pull request. The agent may use credentials that are already configured in its environment.
+
+## Direct Vercel workflow without GitHub
+
+Download and extract the current source:
+
+```bash
+mkdir fated-and-forged
+cd fated-and-forged
+curl -fsSLo source.tar.gz https://fated-and-forged.vercel.app/contributor-kit/fated-and-forged-source.tar.gz
+tar -xzf source.tar.gz
+rm source.tar.gz
+npm install
+```
+
+Make the requested changes. Put new images in `public/products/` and update the catalog files described below. Then validate, regenerate the downloadable source bundle, and deploy:
+
+```bash
+npm run build
+git diff --check 2>/dev/null || true
+rg -n --hidden --glob '!.git/**' 'arcade''_sk_|ghp''_|github''_pat_' .
+npm run contributor-kit
+npx vercel link --yes --team team_m2GV3vYmjMXTChccVmkqej0D --project prj_X8d6vk7FD0N7dDeahNcEYutydIrI --token "$VERCEL_TOKEN"
+npx vercel deploy --prod --yes --logs --token "$VERCEL_TOKEN"
+```
+
+The secret scan should return no matches. The deployment must report that it was aliased to `https://fated-and-forged.vercel.app`. The regenerated contributor kit is essential because it is the source record for the next no-GitHub contributor.
 
 ## Current application structure
 
@@ -58,7 +98,7 @@ Make the requested source changes and copy image assets into `public/products/`.
 ```bash
 npm run build
 git diff --check
-rg -n --hidden --glob '!.git/**' 'arcade''_sk_|VERCEL''_TOKEN|GITHUB''_TOKEN' .
+rg -n --hidden --glob '!.git/**' 'arcade''_sk_|ghp''_|github''_pat_' .
 git status --short
 ```
 
@@ -113,7 +153,40 @@ Confirm that:
 - Concepts cannot be added to the bag.
 - `git rev-parse HEAD` matches `git ls-remote origin refs/heads/main` after a direct-to-main release.
 
-## Copy-paste prompt for the partner's coding agent
+## Copy-paste prompt for a no-GitHub partner agent
+
+```text
+You are authorized to update the Fated & Forged production website directly for this hackathon. You do not need GitHub.
+
+Production: https://fated-and-forged.vercel.app
+Source bundle: https://fated-and-forged.vercel.app/contributor-kit/fated-and-forged-source.tar.gz
+Vercel team ID: team_m2GV3vYmjMXTChccVmkqej0D
+Vercel project ID: prj_X8d6vk7FD0N7dDeahNcEYutydIrI
+
+Use the temporary Vercel token already supplied in your environment as VERCEL_TOKEN. Never print it or save it in the project.
+
+Download and extract the source bundle into a new directory. Read docs/HACKATHON_AGENT_CONTRIBUTING.md and docs/PARTNER_PRODUCT_HANDOFF.md completely before editing.
+
+Add our Arcade jewelry images to public/products/ with unique lowercase hyphenated filenames. Update lib/store-catalog.ts, data/arcade-products.json, and the fallback products in app/storefront.tsx as appropriate.
+
+A piece is purchasable only if Arcade returned a successful product ID and that piece's guaranteed price. Never invent or transfer pricing, maker, material, product ID, or manufacturing status. Pattern-only and bracelet outputs must remain concepts with price null, “Arcade-generated concept art,” “Coming soon,” and disabled checkout.
+
+You may make the agreed layout, copy, styling, and functionality changes. Preserve unrelated behavior and the responsive design.
+
+Run npm run build and the secret scan in the contributor guide. Resolve all failures. Then run npm run contributor-kit so your updated source is included in the production deployment for the next contributor.
+
+Link only to the existing Vercel project with:
+npx vercel link --yes --team team_m2GV3vYmjMXTChccVmkqej0D --project prj_X8d6vk7FD0N7dDeahNcEYutydIrI --token "$VERCEL_TOKEN"
+
+Deploy directly with:
+npx vercel deploy --prod --yes --logs --token "$VERCEL_TOKEN"
+
+Do not create a new Vercel project. Confirm the deployment is aliased to https://fated-and-forged.vercel.app.
+
+Verify the homepage, /api/catalog, every new image URL, product pricing states, and disabled checkout for concepts. Report the production URL, deployment ID, changed files, and verification results.
+```
+
+## Copy-paste prompt for a GitHub partner agent
 
 ```text
 You are an authorized hackathon contributor to the Fated & Forged website.

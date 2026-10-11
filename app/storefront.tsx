@@ -28,7 +28,7 @@ type DesignJobResponse = {
   };
 };
 
-const fallbackProducts: Product[] = [
+const fallbackProducts = [
   { productId: "pending-leo-aquarius", slug: "solar-orbit-ring", name: "Solar Orbit", subtitle: "A promise written in opposing stars", collection: "engagement", signs: "Leo × Aquarius", imageUrl: "", images: [], material: "14k Yellow Gold", maker: "Arcade maker network", description: "An oval diamond held in a low celestial setting, with two tiny constellation details orbiting the band.", price: null },
   { productId: "pending-pisces-virgo", slug: "tide-and-wheat-ring", name: "Tide & Wheat", subtitle: "Soft water meets steady earth", collection: "engagement", signs: "Pisces × Virgo", imageUrl: "", images: [], material: "14k Rose Gold", maker: "Arcade maker network", description: "A bezel-set diamond with an intertwined wave and wheat motif in warm rose gold.", price: null },
   { productId: "pending-scorpio-taurus", slug: "devotion-lock-necklace", name: "Devotion Lock", subtitle: "For the fixed signs who mean it", collection: "kinky", signs: "Scorpio × Taurus", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "Serpent and horn geometry frame a miniature lock—a private promise in plain sight.", price: null },
@@ -47,7 +47,11 @@ const fallbackProducts: Product[] = [
   { productId: "concept-cmv4810xt00fylm10127evaoj", slug: "tidal-thorn-bracelet", name: "Tidal Thorn", subtitle: "A beautiful kind of danger", collection: "bracelets", signs: "Scorpio × Pisces", imageUrl: "", images: [], material: "Sterling silver direction", maker: "Arcade concept study", description: "A darkly polished wave wraps into one elegant thorn, intimate and dangerous without saying too much.", price: null, availability: "concept" },
   { productId: "concept-cmv4813d7007ppa10nf4j8h12", slug: "sun-current-bracelet", name: "Sun Current", subtitle: "Radiance that refuses a cage", collection: "bracelets", signs: "Leo × Aquarius", imageUrl: "", images: [], material: "Gold vermeil direction", maker: "Arcade concept study", description: "A radiant sun sends two electric currents around the wrist in a bold open silhouette.", price: null, availability: "concept" },
   { productId: "concept-cmv4812o200ixpb10c2wwxhhe", slug: "rooted-orbit-bracelet", name: "Rooted Orbit", subtitle: "Grounded enough to grow", collection: "bracelets", signs: "Taurus × Virgo", imageUrl: "", images: [], material: "Yellow gold direction", maker: "Arcade concept study", description: "A slender orbit carries tiny wheat leaves and a single earth-toned stone like a shared garden.", price: null, availability: "concept" },
-];
+].map((product) => product.availability === "concept" ? {
+  ...product,
+  imageUrl: `/products/${product.slug}.png`,
+  images: [{ url: `/products/${product.slug}.png` }],
+} : product) as Product[];
 
 const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 
@@ -61,6 +65,7 @@ function productPrice(product: Product) {
 }
 
 function ProductArtwork({ product, index }: { product: Product; index: number }) {
+  if (product.availability === "concept" && product.imageUrl) return <div className="concept-image"><img src={product.imageUrl} alt={`${product.name}, Arcade-generated bracelet concept artwork`} className="product-image" /><span>Arcade-generated concept art</span><b>Coming soon</b></div>;
   if (product.imageUrl) return <img src={product.imageUrl} alt={`${product.name}, ${product.material}`} className="product-image" />;
   if (product.availability === "concept") return <div className={`concept-art concept-art-${index % 3}`} aria-label={`${product.name}, bracelet concept coming soon`}><div className="bracelet-shape"><i /><i /></div><span>Arcade concept study</span><b>Coming soon</b></div>;
   return <div className={`placeholder-art placeholder-art-${index % 4}`} aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
@@ -120,7 +125,7 @@ export default function Storefront() {
   }
 
   return <main>
-    <div className="announcement">Priced pieces made to order by Arcade’s vetted makers <span>✦</span> Bracelet concepts coming soon</div>
+    <div className="announcement">Rings + necklaces: priced by Arcade <span>✦</span> Bracelets: concept art, coming soon</div>
     <header className="site-header">
       <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu /></button>
       <a href="#top" className="brand" aria-label="Fated and Forged home"><span>FATED</span><i>×</i><span>FORGED</span></a>
@@ -148,7 +153,7 @@ export default function Storefront() {
 
     <section className="shop-section" id="shop">
       <div className="shop-heading"><div><p className="eyebrow"><Asterisk size={13} /> The first drop</p><h2>Choose your constellation.</h2></div><div className="collection-tabs" role="tablist" aria-label="Filter products">{(["all", "engagement", "kinky", "bracelets"] as const).map((collection) => <button key={collection} className={activeCollection === collection ? "active" : ""} onClick={() => setActiveCollection(collection)}>{collection === "all" ? "All pieces" : collection}</button>)}</div></div>
-      {activeCollection === "bracelets" && <div className="concept-notice"><Sparkles size={17} /><p><strong>Bracelet Concept Lab</strong> Arcade generated the creative directions, but its API does not yet offer a bracelet manufacturing category or guaranteed bracelet prices. These studies are coming soon and cannot be purchased yet.</p></div>}
+      {activeCollection === "bracelets" && <div className="concept-notice"><Sparkles size={17} /><p><strong>Bracelet Concept Lab</strong> The images below are Arcade-generated concept art. Arcade’s API does not yet offer a bracelet manufacturing category or guaranteed bracelet prices, so every bracelet is marked coming soon and cannot be purchased yet.</p></div>}
       <div className="product-grid">{visibleProducts.map((product, index) => <article className="product-card" key={product.productId}><button className="product-art" onClick={() => setSelected(product)} aria-label={`View ${product.name}`}><ProductArtwork product={product} index={index} /><span className="product-collection">{product.collection}{product.availability === "concept" ? " · concept" : ""}</span><span className="quick-view">View piece <ArrowRight size={15} /></span></button><div className="product-info"><div><h3>{product.name}</h3><p>{product.signs}</p></div><span>{productPrice(product)}</span></div><p className="product-subtitle">{product.subtitle}</p></article>)}</div>
     </section>
 

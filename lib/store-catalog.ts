@@ -224,6 +224,7 @@ export function presentProduct(definition: CatalogDefinition, product: {
 }
 
 export function presentBraceletConcept(definition: BraceletConceptDefinition) {
+  const conceptImageUrl = `/products/${definition.slug}.png`;
   return {
     productId: `concept-${definition.patternId}`,
     slug: definition.slug,
@@ -231,8 +232,8 @@ export function presentBraceletConcept(definition: BraceletConceptDefinition) {
     subtitle: definition.subtitle,
     collection: definition.collection,
     signs: definition.signs,
-    imageUrl: "",
-    images: [],
+    imageUrl: conceptImageUrl,
+    images: [{ url: conceptImageUrl }],
     material: definition.material,
     maker: "Arcade concept study",
     description: definition.description,

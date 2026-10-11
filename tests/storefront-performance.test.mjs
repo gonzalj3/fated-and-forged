@@ -14,6 +14,7 @@ const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
 const { extendCatalogWithArchive, isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
 const { extractExifDate } = await import("../lib/photo-memory.ts");
+const { zodiacForDate } = await import("../lib/zodiac.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(storefront, /bracelet/i);
@@ -46,6 +47,15 @@ test("photo DateTimeOriginal metadata becomes the memory date", () => {
   view.setUint16(40, 0x9003, true); view.setUint16(42, 2, true); view.setUint32(44, 20, true); view.setUint32(48, 44, true);
   view.setUint32(52, 0, true); bytes.write("2026:10:11 14:30:00\0", 56, "ascii");
   assert.equal(extractExifDate(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)), "2026-10-11");
+});
+
+test("memory reveal uses the constellation for the captured date", () => {
+  assert.equal(zodiacForDate("2026-03-20"), "Pisces");
+  assert.equal(zodiacForDate("2026-03-21"), "Aries");
+  assert.equal(zodiacForDate("2026-10-11"), "Libra");
+  assert.match(storefront, /<DateConstellation date=\{memoryDate\}/);
+  assert.match(storefront, /memory-product-reveal/);
+  assert.match(storefront, /MEMORY_PRODUCTS_KEY/);
 });
 
 test("photo analysis stays explicit and only its text description is sent to Arcade", () => {

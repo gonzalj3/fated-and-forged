@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowDown, ArrowRight, Asterisk, Camera, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import productArchive from "@/data/arcade-products.json";
 import { extendCatalogWithArchive, presentArchivedProduct, type ProductCollection } from "@/lib/store-catalog";
 import { extractExifDate } from "@/lib/photo-memory";
+import { zodiacForDate, type ZodiacSign } from "@/lib/zodiac";
 
 type Product = {
   productId: string; slug: string; name: string; subtitle: string;
@@ -40,6 +41,21 @@ const fallbackProducts = extendCatalogWithArchive(productArchive).map((definitio
 const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
 const collectionLabels: Record<ProductCollection, string> = { engagement: "The Proposal", kinky: "After Dark", "everyday-stars": "Everyday Stars" };
 const collectionFilters = ["all", "engagement", "kinky", "everyday-stars"] as const;
+const MEMORY_PRODUCTS_KEY = "fated-and-forged-memory-products";
+const constellationPoints: Record<ZodiacSign, Array<[number, number]>> = {
+  Aries: [[12, 42], [28, 34], [44, 37], [61, 22], [84, 27]],
+  Taurus: [[10, 18], [26, 30], [42, 34], [57, 50], [72, 38], [90, 46]],
+  Gemini: [[18, 14], [24, 49], [43, 37], [59, 18], [67, 51], [84, 40]],
+  Cancer: [[12, 31], [30, 22], [46, 37], [65, 43], [86, 31]],
+  Leo: [[10, 48], [27, 37], [43, 42], [55, 24], [73, 18], [88, 31]],
+  Virgo: [[10, 20], [25, 34], [40, 18], [53, 40], [70, 29], [88, 47]],
+  Libra: [[12, 39], [30, 21], [49, 28], [68, 18], [87, 38]],
+  Scorpio: [[9, 20], [24, 31], [39, 23], [53, 39], [69, 34], [85, 49], [92, 30]],
+  Sagittarius: [[9, 49], [28, 39], [44, 20], [61, 35], [78, 15], [88, 31]],
+  Capricorn: [[10, 20], [27, 31], [41, 49], [58, 39], [73, 18], [89, 26]],
+  Aquarius: [[8, 25], [24, 37], [40, 25], [57, 40], [73, 28], [91, 38]],
+  Pisces: [[10, 20], [27, 32], [43, 47], [58, 33], [75, 43], [91, 25]],
+};
 
 function money(price: Product["price"]) {
   if (!price) return "Pricing…";
@@ -49,6 +65,28 @@ function money(price: Product["price"]) {
 function ProductArtwork({ product, priority = false }: { product: Product; priority?: boolean }) {
   if (product.imageUrl) return <img src={product.imageUrl} alt={`${product.name}, ${product.material}`} className="product-image" width={1024} height={1024} loading={priority ? "eager" : "lazy"} fetchPriority={priority ? "high" : "auto"} decoding="async" />;
   return <div className="placeholder-art" aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
+}
+
+function DateConstellation({ date }: { date: string }) {
+  const sign = zodiacForDate(date);
+  const points = constellationPoints[sign];
+  const line = points.map(([x, y]) => `${x},${y}`).join(" ");
+  return <div className="memory-constellation memory-stage" aria-live="polite">
+    <p className="eyebrow">The sky on your date</p>
+    <svg viewBox="0 0 100 64" role="img" aria-label={`${sign} constellation`}>
+      <polyline points={line} />
+      {points.map(([x, y], index) => <circle key={`${x}-${y}`} cx={x} cy={y} r={index % 3 === 0 ? 2.1 : 1.35} />)}
+    </svg>
+    <h2 id="memory-title">{sign}</h2>
+    <p>{date ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Your captured date"}</p>
+    <span><LoaderCircle className="spin" size={16} /> Arcade is translating this memory into metal</span>
+  </div>;
+}
+
+function isStoredMemoryProduct(value: unknown): value is Product {
+  if (!value || typeof value !== "object") return false;
+  const product = value as Partial<Product>;
+  return typeof product.productId === "string" && typeof product.imageUrl === "string" && product.collection === "everyday-stars" && product.slug?.startsWith("memory-") === true;
 }
 
 async function extractPhotoPalette(imageUrl: string) {
@@ -111,6 +149,7 @@ export default function Storefront() {
   const [visionMessage, setVisionMessage] = useState("");
   const [memoryState, setMemoryState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [memoryMessage, setMemoryMessage] = useState("");
+  const [memoryProduct, setMemoryProduct] = useState<Product | null>(null);
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "error">("idle");
   const [designState, setDesignState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [designMessage, setDesignMessage] = useState("");
@@ -118,6 +157,15 @@ export default function Storefront() {
   const visibleProducts = useMemo(() => activeCollection === "all" ? products : products.filter((product) => product.collection === activeCollection), [products, activeCollection]);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + Number(item.price?.amount || 0) * item.quantity, 0);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(MEMORY_PRODUCTS_KEY) || "[]") as unknown;
+      if (!Array.isArray(stored)) return;
+      const savedProducts = stored.filter(isStoredMemoryProduct);
+      setProducts((current) => [...savedProducts, ...current.filter((product) => !savedProducts.some((saved) => saved.productId === product.productId))]);
+    } catch { /* Ignore invalid browser storage. */ }
+  }, []);
 
   function addToCart(product: Product) {
     setCart((current) => { const found = current.find((item) => item.productId === product.productId); return found ? current.map((item) => item.productId === product.productId ? { ...item, quantity: item.quantity + 1 } : item) : [...current, { ...product, quantity: 1 }]; });
@@ -172,7 +220,7 @@ export default function Storefront() {
       setMemoryPalette(palette);
       setMemoryImageDataUrl(imageDataUrl);
       setVisualDescription(""); setVisionState("idle"); setVisionMessage("");
-      setMemoryState("idle"); setMemoryMessage("");
+      setMemoryProduct(null); setMemoryState("idle"); setMemoryMessage("");
     } catch {
       setMemoryState("error"); setMemoryMessage("We could not read that photo. Try another image.");
     }
@@ -213,8 +261,14 @@ export default function Storefront() {
         const jobError = typeof job.error === "string" ? job.error : job.error?.message;
         if (!jobResponse.ok || job.status === "failed") throw new Error(jobError || "Arcade could not manufacture this memory");
         if (job.status === "succeeded" && job.product) {
-          const custom: Product = { productId: job.product.productId, slug: `memory-${job.product.productId}`, name: "Your Memory, Forged", subtitle: `Captured ${memoryDate}`, collection: "everyday-stars", signs: "A moment worth wearing", imageUrl: job.product.imageUrl, images: job.product.images || [], material: job.product.selections?.material || details.material, maker: job.product.maker?.name || "Arcade maker network", description: job.product.description || details.memory, price: job.product.unitPrice };
+          const custom: Product = { productId: job.product.productId, slug: `memory-${job.product.productId}`, name: "Your Memory, Forged", subtitle: `Captured ${memoryDate}`, collection: "everyday-stars", signs: zodiacForDate(memoryDate), imageUrl: job.product.imageUrl, images: job.product.images || [], material: job.product.selections?.material || details.material, maker: job.product.maker?.name || "Arcade maker network", description: job.product.description || details.memory, price: job.product.unitPrice };
           setProducts((current) => [custom, ...current]);
+          setMemoryProduct(custom);
+          try {
+            const stored = JSON.parse(localStorage.getItem(MEMORY_PRODUCTS_KEY) || "[]") as unknown;
+            const savedProducts = Array.isArray(stored) ? stored.filter(isStoredMemoryProduct) : [];
+            localStorage.setItem(MEMORY_PRODUCTS_KEY, JSON.stringify([custom, ...savedProducts.filter((product) => product.productId !== custom.productId)].slice(0, 12)));
+          } catch { /* The product still remains in this session if storage is unavailable. */ }
           setActiveCollection("all"); setMemoryState("done");
           setMemoryMessage("Arcade created and priced a one-of-one piece from your memory, photo palette, and date.");
           return;
@@ -222,6 +276,12 @@ export default function Storefront() {
       }
       throw new Error("Your memory is still being crafted. Keep this page open and try again in a moment.");
     } catch (error) { setMemoryState("error"); setMemoryMessage(error instanceof Error ? error.message : "Could not start the memory design."); }
+  }
+
+  function showMemoryInStorefront() {
+    setMemoryOpen(false);
+    setActiveCollection("all");
+    requestAnimationFrame(() => document.querySelector("#shop")?.scrollIntoView({ behavior: "smooth" }));
   }
 
   return <main>
@@ -268,6 +328,6 @@ export default function Storefront() {
 
     {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
 
-    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className="design-modal memory-modal" role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll read its date and palette, and DeepSeek can describe the scene before Arcade turns it into a manufacturable piece.</p>{memoryState === "done" ? <div className="design-success"><Check /><h3>Your memory is taking shape.</h3><p>{memoryMessage}</p><button className="primary-button" onClick={() => setMemoryOpen(false)}>See it in the atelier</button></div> : <form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><button type="button" className="vision-button" onClick={analyzeMemoryPhoto} disabled={visionState === "loading"}>{visionState === "loading" ? <><LoaderCircle className="spin" size={14} /> Reading the scene…</> : <><Sparkles size={14} /> Analyze with DeepSeek</>}</button></div></div>}{visionState === "error" && <p className="error-text">{visionMessage}</p>}{(visionState === "done" || visualDescription) && <label>What DeepSeek sees<textarea value={visualDescription} onChange={(event) => setVisualDescription(event.target.value)} maxLength={1200} /><small>Edit anything before this description is sent to Arcade.</small></label>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={memoryState === "loading" || visionState === "loading"}>{memoryState === "loading" ? <><LoaderCircle className="spin" size={18} /> Forging your memory…</> : <>Create from this memory <Camera size={16} /></>}</button><small>The photo is sent to DeepSeek only if you choose Analyze. Arcade receives the description, date, palette, and your memory—not the photo. No purchase is made.</small></form>}</section></div>}
+    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className={`design-modal memory-modal ${memoryState === "done" ? "memory-modal-reveal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button>{memoryState === "loading" ? <DateConstellation date={memoryDate} /> : memoryState === "done" && memoryProduct ? <div className="memory-product-reveal memory-stage"><div className="memory-result-art"><ProductArtwork product={memoryProduct} priority /></div><div className="memory-result-copy"><p className="eyebrow"><Check size={13} /> Your memory, forged</p><h2 id="memory-title">{memoryProduct.name}</h2><p className="memory-result-sign">{zodiacForDate(memoryDate)} / {memoryDate}</p><p>{memoryProduct.description}</p><dl><div><dt>Material</dt><dd>{memoryProduct.material}</dd></div><div><dt>Made by</dt><dd>{memoryProduct.maker}</dd></div><div><dt>Arcade price</dt><dd>{money(memoryProduct.price)}</dd></div></dl><p className="memory-saved-note">Saved to Everyday Stars on this browser.</p><div className="memory-result-actions"><button className="primary-button" onClick={() => { setMemoryOpen(false); addToCart(memoryProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showMemoryInStorefront}>See it in the collection</button></div></div></div> : <><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll read its date and palette, and DeepSeek can describe the scene before Arcade turns it into a manufacturable piece.</p><form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required={!memoryPreview} /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><button type="button" className="vision-button" onClick={analyzeMemoryPhoto} disabled={visionState === "loading"}>{visionState === "loading" ? <><LoaderCircle className="spin" size={14} /> Reading the scene…</> : <><Sparkles size={14} /> Analyze with DeepSeek</>}</button></div></div>}{visionState === "error" && <p className="error-text">{visionMessage}</p>}{(visionState === "done" || visualDescription) && <label>What DeepSeek sees<textarea value={visualDescription} onChange={(event) => setVisualDescription(event.target.value)} maxLength={1200} /><small>Edit anything before this description is sent to Arcade.</small></label>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={visionState === "loading"}>Create from this memory <Camera size={16} /></button><small>The photo is sent to DeepSeek only if you choose Analyze. Arcade receives the description, date, palette, and your memory—not the photo. No purchase is made.</small></form></>}</section></div>}
   </main>;
 }

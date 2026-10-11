@@ -15,6 +15,7 @@ const nextConfig = read("next.config.ts");
 const { extendCatalogWithArchive, isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
 const { extractExifDate } = await import("../lib/photo-memory.ts");
 const { zodiacForDate } = await import("../lib/zodiac.ts");
+const { buildMemoryPrompt } = await import("../lib/memory-prompt.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(storefront, /bracelet/i);
@@ -58,8 +59,9 @@ test("memory reveal uses the constellation for the captured date", () => {
   assert.match(storefront, /MEMORY_PRODUCTS_KEY/);
 });
 
-test("photo analysis stays explicit and only its text description is sent to Arcade", () => {
-  assert.match(storefront, /Analyze with DeepSeek/);
+test("photo analysis runs automatically without revealing its description", () => {
+  assert.doesNotMatch(storefront, /Analyze with DeepSeek|What DeepSeek sees/);
+  assert.match(storefront, /await analyzeMemoryPhoto\(imageDataUrl\)/);
   assert.match(storefront, /fetch\("\/api\/analyze-photo"/);
   assert.match(storefront, /visualDescription/);
   assert.match(photoAnalysisRoute, /deepseek-flash/);
@@ -69,6 +71,19 @@ test("photo analysis stays explicit and only its text description is sent to Arc
   assert.doesNotMatch(photoAnalysisRoute, /sk-[a-z0-9]/i);
   assert.match(memoryDesignRoute, /visualDescription/);
   assert.doesNotMatch(memoryDesignRoute, /imageDataUrl/);
+});
+
+test("Arcade memory prompts never exceed 1000 characters", () => {
+  const prompt = buildMemoryPrompt({
+    material: "14k Yellow Gold",
+    jewelryType: "necklace",
+    memory: "memory ".repeat(200),
+    visualDescription: "scene ".repeat(300),
+    capturedAt: "2026-10-11",
+    palette: ["#112233", "#445566", "#778899", "#aabbcc"],
+  });
+  assert.ok(prompt.length <= 1_000);
+  assert.match(prompt, /2026-10-11/);
 });
 
 test("every catalog product has a lightweight local WebP", () => {

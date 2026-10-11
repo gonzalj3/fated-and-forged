@@ -10,6 +10,22 @@ type Product = {
   description: string; price: { amount: string; currency: string } | null;
 };
 type CartLine = Product & { quantity: number };
+type CatalogResponse = { products?: Product[] };
+type CheckoutResponse = { checkoutUrl?: string };
+type DesignResponse = { jobId?: string; error?: string };
+type DesignJobResponse = {
+  status?: "running" | "succeeded" | "failed";
+  error?: string | { message?: string };
+  product?: {
+    productId: string;
+    imageUrl: string;
+    images?: { url: string }[];
+    selections?: Record<string, string>;
+    maker?: { name?: string };
+    description?: string | null;
+    unitPrice: Product["price"];
+  };
+};
 
 const fallbackProducts: Product[] = [
   { productId: "pending-leo-aquarius", slug: "solar-orbit-ring", name: "Solar Orbit", subtitle: "A promise written in opposing stars", collection: "engagement", signs: "Leo × Aquarius", imageUrl: "", images: [], material: "14k Yellow Gold", maker: "Arcade maker network", description: "An oval diamond held in a low celestial setting, with two tiny constellation details orbiting the band.", price: null },
@@ -42,7 +58,7 @@ export default function Storefront() {
   const [designState, setDesignState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [designMessage, setDesignMessage] = useState("");
 
-  useEffect(() => { fetch("/api/catalog").then((response) => response.ok ? response.json() : Promise.reject()).then((data) => data.products?.length && setProducts(data.products)).catch(() => undefined); }, []);
+  useEffect(() => { fetch("/api/catalog").then((response) => response.ok ? response.json() as Promise<CatalogResponse> : Promise.reject()).then((data) => data.products?.length && setProducts(data.products)).catch(() => undefined); }, []);
   const visibleProducts = useMemo(() => activeCollection === "all" ? products : products.filter((product) => product.collection === activeCollection), [products, activeCollection]);
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const cartTotal = cart.reduce((sum, item) => sum + Number(item.price?.amount || 0) * item.quantity, 0);
@@ -55,20 +71,21 @@ export default function Storefront() {
   function changeQuantity(productId: string, delta: number) { setCart((current) => current.map((item) => item.productId === productId ? { ...item, quantity: item.quantity + delta } : item).filter((item) => item.quantity > 0)); }
   async function checkout() {
     setCheckoutState("loading");
-    try { const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: cart.map(({ productId, quantity }) => ({ productId, quantity })) }) }); const data = await response.json(); if (!response.ok || !data.checkoutUrl) throw new Error(); window.location.href = data.checkoutUrl; } catch { setCheckoutState("error"); }
+    try { const response = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lines: cart.map(({ productId, quantity }) => ({ productId, quantity })) }) }); const data = await response.json() as CheckoutResponse; if (!response.ok || !data.checkoutUrl) throw new Error(); window.location.href = data.checkoutUrl; } catch { setCheckoutState("error"); }
   }
   async function submitDesign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setDesignState("loading"); setDesignMessage("");
     const details = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
     try {
       const response = await fetch("/api/design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(details) });
-      const data = await response.json();
+      const data = await response.json() as DesignResponse;
       if (!response.ok || !data.jobId) throw new Error(data.error || "Could not start the design");
       for (let attempt = 0; attempt < 45; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 4000));
         const jobResponse = await fetch(`/api/job?jobId=${encodeURIComponent(data.jobId)}`);
-        const job = await jobResponse.json();
-        if (!jobResponse.ok || job.status === "failed") throw new Error(job.error?.message || job.error || "Arcade could not manufacture this design");
+        const job = await jobResponse.json() as DesignJobResponse;
+        const jobError = typeof job.error === "string" ? job.error : job.error?.message;
+        if (!jobResponse.ok || job.status === "failed") throw new Error(jobError || "Arcade could not manufacture this design");
         if (job.status === "succeeded" && job.product) {
           const custom: Product = { productId: job.product.productId, slug: `custom-${job.product.productId}`, name: "Your Celestial One-of-One", subtitle: "Generated from your chemistry", collection: details.collection as "engagement" | "kinky", signs: `${details.signOne} × ${details.signTwo}`, imageUrl: job.product.imageUrl, images: job.product.images || [], material: job.product.selections?.material || details.material, maker: job.product.maker?.name || "Arcade maker network", description: job.product.description || details.story, price: job.product.unitPrice };
           setProducts((current) => [custom, ...current]);

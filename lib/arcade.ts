@@ -1,9 +1,7 @@
-import { env } from "cloudflare:workers";
-
 const ARCADE_BASE_URL = "https://platform.arcade.ai/v1";
 
 export async function arcadeRequest<T>(path: string, body: unknown): Promise<T> {
-  const apiKey = env.ARCADE_API_KEY;
+  const apiKey = process.env.ARCADE_API_KEY;
   if (!apiKey) throw new Error("Arcade is not configured");
 
   const response = await fetch(`${ARCADE_BASE_URL}${path}`, {

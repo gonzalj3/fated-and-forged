@@ -1,9 +1,20 @@
+export const productCollections = ["engagement", "kinky", "everyday-stars"] as const;
+export type ProductCollection = (typeof productCollections)[number];
+
+export function isProductCollection(value: string): value is ProductCollection {
+  return productCollections.includes(value as ProductCollection);
+}
+
+export function isAllowedProductCandidate(candidate: { collection: string; productType: string }) {
+  return isProductCollection(candidate.collection) && !/\bbracelets?\b/i.test(candidate.productType);
+}
+
 export type CatalogDefinition = {
   productId: string;
   slug: string;
   name: string;
   subtitle: string;
-  collection: "engagement" | "kinky";
+  collection: ProductCollection;
   signs: string;
   fallbackDescription: string;
 };

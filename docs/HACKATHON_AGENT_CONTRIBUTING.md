@@ -73,6 +73,12 @@ Keep each WebP below 200 KB. Update `localAsset` in `data/arcade-products.json` 
 
 ## Truthful product states
 
+Only add successful Arcade products from The Proposal (engagement), After Dark (kinky), or Everyday Stars collections.
+
+Everyday Stars is couples' birth-chart jewelry that isn't an engagement ring or kink-themed: birth-chart stacking rings (sun, moon, rising, birthday, constellation), couples and birth-chart necklaces (matching sets, medallions, lockets, bars), and multi-piercing "ear story" earrings.
+
+No bracelets, in any collection.
+
 ### Priced and purchasable
 
 A product may be marked `priced` only when Arcade returned a successful product ID and a guaranteed price. Add its real product ID to `catalog` in `lib/store-catalog.ts` and its exact verified price snapshot to `data/arcade-products.json`. The storefront reads this checked-in snapshot and does not call Arcade during page rendering. Do not reuse a price from a different product and do not invent a maker, material, or manufacturing status.
@@ -182,6 +188,12 @@ Download and extract the source bundle into a new directory. Read docs/HACKATHON
 
 Add our Arcade jewelry images to public/products/ as WebPs with unique lowercase hyphenated filenames. Keep each storefront image under 200 KB. Update lib/store-catalog.ts, data/arcade-products.json, and the fallback products in app/storefront.tsx as appropriate.
 
+Only add successful Arcade products from The Proposal (engagement), After Dark (kinky), or Everyday Stars collections.
+
+Everyday Stars is couples' birth-chart jewelry that isn't an engagement ring or kink-themed: birth-chart stacking rings (sun, moon, rising, birthday, constellation), couples and birth-chart necklaces (matching sets, medallions, lockets, bars), and multi-piercing "ear story" earrings.
+
+No bracelets, in any collection.
+
 A piece is publishable only if Arcade returned a successful product ID and that piece's guaranteed price. Never invent or transfer pricing, maker, material, product ID, or manufacturing status. Do not add pattern-only or concept outputs to the storefront.
 
 You may make the agreed layout, copy, styling, and functionality changes. Preserve unrelated behavior and the responsive design.
@@ -211,6 +223,12 @@ Vercel project: martin-gonzalez-s-projects/fated-and-forged
 First read docs/HACKATHON_AGENT_CONTRIBUTING.md and docs/PARTNER_PRODUCT_HANDOFF.md completely. Use the GitHub and Vercel credentials already configured in your environment. Never print, paste, commit, or create a file containing an Arcade key, GitHub token, Vercel token, cookie, or .env value.
 
 Your task is to add our Arcade-generated jewelry and any agreed storefront changes.
+
+Only add successful Arcade products from The Proposal (engagement), After Dark (kinky), or Everyday Stars collections.
+
+Everyday Stars is couples' birth-chart jewelry that isn't an engagement ring or kink-themed: birth-chart stacking rings (sun, moon, rising, birthday, constellation), couples and birth-chart necklaces (matching sets, medallions, lockets, bars), and multi-piercing "ear story" earrings.
+
+No bracelets, in any collection.
 
 For each image:
 - Preserve the highest-resolution Arcade output, ideally 1024×1024.

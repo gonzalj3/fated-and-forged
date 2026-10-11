@@ -2,6 +2,12 @@
 
 The safest collaboration path is a product handoff packet. It moves product IDs and creative metadata between agents without sharing either person's Arcade API key or the storefront's Vercel credentials.
 
+Only add successful Arcade products from The Proposal (engagement), After Dark (kinky), or Everyday Stars collections.
+
+Everyday Stars is couples' birth-chart jewelry that isn't an engagement ring or kink-themed: birth-chart stacking rings (sun, moon, rising, birthday, constellation), couples and birth-chart necklaces (matching sets, medallions, lockets, bars), and multi-piercing "ear story" earrings.
+
+No bracelets, in any collection.
+
 ## Copy this prompt to the partner's agent
 
 ```text
@@ -20,7 +26,7 @@ Return one JSON object only, with this exact shape:
       "arcadePatternId": "the pattern ID if available, otherwise omit",
       "name": "a distinctive 2-4 word product name",
       "subtitle": "a short editorial line",
-      "collection": "engagement or kinky",
+      "collection": "engagement, kinky, or everyday-stars",
       "signs": "Sign One × Sign Two",
       "description": "one factual customer-facing paragraph",
       "assetUrl": "the highest-resolution Arcade image URL"
@@ -32,7 +38,9 @@ Rules:
 - Include only products that have a real Arcade product ID and guaranteed price.
 - Do not invent or copy a price, maker, material, product ID, or manufacturing status.
 - Do not include failed or still-running jobs.
-- Use only `engagement` or `kinky` for products intended for this storefront.
+- Only add successful Arcade products from The Proposal (engagement), After Dark (kinky), or Everyday Stars collections.
+- Everyday Stars is couples' birth-chart jewelry that isn't an engagement ring or kink-themed: birth-chart stacking rings (sun, moon, rising, birthday, constellation), couples and birth-chart necklaces (matching sets, medallions, lockets, bars), and multi-piercing "ear story" earrings.
+- No bracelets, in any collection.
 - Do not import pattern-only or concept imagery into the live catalog. Omit it from the handoff instead.
 - Make the asset URL available long enough for the receiving agent to download it; signed URLs can expire.
 ```

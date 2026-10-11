@@ -10,11 +10,19 @@ const catalog = read("lib/store-catalog.ts");
 const catalogRoute = read("app/api/catalog/route.ts");
 const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
+const { isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(storefront, /bracelet/i);
-  assert.doesNotMatch(catalog, /bracelet/i);
   assert.doesNotMatch(catalogRoute, /bracelet/i);
+});
+
+test("Everyday Stars is accepted while bracelets are rejected from every collection", () => {
+  assert.equal(isAllowedProductCandidate({ collection: "everyday-stars", productType: "birth-chart stacking ring" }), true);
+  for (const product of products) assert.equal(isProductCollection(product.collection), true);
+  for (const collection of productCollections) {
+    assert.equal(isAllowedProductCandidate({ collection, productType: "bracelet" }), false);
+  }
 });
 
 test("every catalog product has a lightweight local WebP", () => {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { arcadeRequest } from "@/lib/arcade";
+import { isProductCollection } from "@/lib/store-catalog";
 
 const RING_CATEGORY = "23f9c1bf-2fb5-4412-85ba-91cfcf4cba50";
 const NECKLACE_CATEGORY = "cb985ad9-3fe0-4163-8aea-3555dbdfaac9";
@@ -17,11 +18,13 @@ export async function POST(request: Request) {
     const collection = String(body.collection || "");
     const story = String(body.story || "").trim();
     const material = String(body.material || "");
-    if (!signs.has(signOne) || !signs.has(signTwo) || !materials.has(material) || !["engagement", "kinky"].includes(collection) || story.length < 10 || story.length > 350) return NextResponse.json({ error: "Please complete every design detail" }, { status: 400 });
+    if (!signs.has(signOne) || !signs.has(signTwo) || !materials.has(material) || !isProductCollection(collection) || story.length < 10 || story.length > 350) return NextResponse.json({ error: "Please complete every design detail" }, { status: 400 });
 
     const prompt = collection === "engagement"
       ? `A refined ${material} dainty diamond engagement ring for a ${signOne} and ${signTwo} couple. Translate their shared energy into subtle celestial details: ${story}. Elegant, manufacturable, durable, low-profile, romantic and wearable.`
-      : `A refined ${material} pendant necklace for a ${signOne} and ${signTwo} couple. Translate their private after-dark chemistry into subtle lock, link, collar or constellation-inspired geometry: ${story}. Sensual but discreet, elegant, manufacturable and wearable.`;
+      : collection === "kinky"
+        ? `A refined ${material} pendant necklace for a ${signOne} and ${signTwo} couple. Translate their private after-dark chemistry into subtle lock, link, collar or constellation-inspired geometry: ${story}. Sensual but discreet, elegant, manufacturable and wearable.`
+        : `A refined ${material} birth-chart pendant necklace for a ${signOne} and ${signTwo} couple. Translate their shared astrology into subtle sun, moon, rising-sign or constellation details: ${story}. Elegant, manufacturable, durable and wearable every day.`;
     const result = await arcadeRequest<Job>("/patterns/create", { requestId: `fated-custom-${randomUUID()}`, prompt, categoryId: collection === "engagement" ? RING_CATEGORY : NECKLACE_CATEGORY });
     return NextResponse.json({ ...result, collection, signs: `${signOne} × ${signTwo}` });
   } catch (error) {

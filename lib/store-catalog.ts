@@ -132,6 +132,34 @@ export const catalog: CatalogDefinition[] = [
   },
 ];
 
+export function extendCatalogWithArchive(products: readonly {
+  productId: string;
+  slug: string;
+  name: string;
+  collection: string;
+  signs: string;
+  generationBrief: string;
+}[]) {
+  const registeredIds = new Set(catalog.map((product) => product.productId));
+  const registeredSlugs = new Set(catalog.map((product) => product.slug));
+  const imported = products.filter((product) => !registeredIds.has(product.productId) && !registeredSlugs.has(product.slug)).map((product) => {
+    if (!isAllowedProductCandidate({ collection: product.collection, productType: `${product.name} ${product.slug}` })) {
+      throw new Error(`Unsupported product ${product.slug}`);
+    }
+    const collection = product.collection as ProductCollection;
+    return {
+      productId: product.productId,
+      slug: product.slug,
+      name: product.name,
+      subtitle: collection === "engagement" ? "Two skies, one promise" : collection === "kinky" ? "A private code, worn close" : "A birth chart, made wearable",
+      collection,
+      signs: product.signs,
+      fallbackDescription: product.generationBrief,
+    } satisfies CatalogDefinition;
+  });
+  return [...catalog, ...imported];
+}
+
 export function presentArchivedProduct(definition: CatalogDefinition, product: {
   productId: string;
   material: string;

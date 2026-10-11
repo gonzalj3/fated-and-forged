@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowRight, Asterisk, Camera, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import productArchive from "@/data/arcade-products.json";
-import type { ProductCollection } from "@/lib/store-catalog";
+import { extendCatalogWithArchive, presentArchivedProduct, type ProductCollection } from "@/lib/store-catalog";
 import { extractExifDate } from "@/lib/photo-memory";
 
 type Product = {
@@ -30,34 +30,10 @@ type DesignJobResponse = {
   };
 };
 
-const fallbackProducts = [
-  { productId: "pending-leo-aquarius", slug: "solar-orbit-ring", name: "Solar Orbit", subtitle: "A promise written in opposing stars", collection: "engagement", signs: "Leo × Aquarius", imageUrl: "", images: [], material: "14k Yellow Gold", maker: "Arcade maker network", description: "An oval diamond held in a low celestial setting, with two tiny constellation details orbiting the band.", price: null },
-  { productId: "pending-pisces-virgo", slug: "tide-and-wheat-ring", name: "Tide & Wheat", subtitle: "Soft water meets steady earth", collection: "engagement", signs: "Pisces × Virgo", imageUrl: "", images: [], material: "14k Rose Gold", maker: "Arcade maker network", description: "A bezel-set diamond with an intertwined wave and wheat motif in warm rose gold.", price: null },
-  { productId: "pending-scorpio-taurus", slug: "devotion-lock-necklace", name: "Devotion Lock", subtitle: "For the fixed signs who mean it", collection: "kinky", signs: "Scorpio × Taurus", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "Serpent and horn geometry frame a miniature lock—a private promise in plain sight.", price: null },
-  { productId: "pending-celestial-cuffs", slug: "celestial-cuffs-necklace", name: "Celestial Cuffs", subtitle: "Linked by choice, guided by stars", collection: "kinky", signs: "Your two signs", imageUrl: "", images: [], material: "925 Sterling Silver", maker: "Arcade maker network", description: "Two abstract cuffs joined by a delicate chain and finished with subtle constellation engravings.", price: null },
-  { productId: "pending-equinox-promise", slug: "equinox-promise-ring", name: "Equinox Promise", subtitle: "Where opposites find their balance", collection: "engagement", signs: "Aries × Libra", imageUrl: "", images: [], material: "14k White Gold", maker: "Arcade maker network", description: "A low-set diamond held between a whisper of flame and a balanced horizon—opposites meeting at the equinox.", price: null },
-  { productId: "pending-moon-meridian", slug: "moon-meridian-ring", name: "Moon Meridian", subtitle: "Tenderness with a backbone", collection: "engagement", signs: "Cancer × Capricorn", imageUrl: "", images: [], material: "14k Yellow Gold", maker: "Arcade maker network", description: "A crescent-soft curve meets a steady mountain line beneath a bright center stone—a study in tenderness and resolve.", price: null },
-  { productId: "pending-wild-compass", slug: "wild-compass-ring", name: "Wild Compass", subtitle: "Two minds, one true north", collection: "engagement", signs: "Gemini × Sagittarius", imageUrl: "", images: [], material: "14k Rose Gold", maker: "Arcade maker network", description: "Twin bands travel their own paths before meeting beneath a compass star, made for the pair who always finds the way back.", price: null },
-  { productId: "pending-ember-garden", slug: "ember-garden-ring", name: "Ember Garden", subtitle: "A devotion that keeps growing", collection: "engagement", signs: "Leo × Taurus", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "Fine sun rays soften into tiny leaves around a bezel-set stone—radiance rooted in something lasting.", price: null },
-  { productId: "pending-double-dare", slug: "double-dare-necklace", name: "Double Dare", subtitle: "For the pair that never plays it safe", collection: "kinky", signs: "Gemini × Sagittarius", imageUrl: "", images: [], material: "925 Sterling Silver", maker: "Arcade maker network", description: "Two elongated links hold each other in tension, finished with a miniature arrow detail for the couple always tempting fate.", price: null },
-  { productId: "pending-velvet-rule", slug: "velvet-rule-necklace", name: "Velvet Rule", subtitle: "Soft power, beautifully worn", collection: "kinky", signs: "Cancer × Capricorn", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "A soft crescent rests beneath an architectural peak—a quiet emblem of care, structure, and chosen control.", price: null },
-  { productId: "pending-balanced-heat", slug: "balanced-heat-necklace", name: "Balanced Heat", subtitle: "Equal parts spark and surrender", collection: "kinky", signs: "Aries × Libra", imageUrl: "", images: [], material: "14k Rose Gold", maker: "Arcade maker network", description: "A sculptural flame slips through a polished balance ring—heat and harmony held in one private symbol.", price: null },
-  { productId: "pending-afterglow-link", slug: "afterglow-link-necklace", name: "Afterglow Link", subtitle: "Made for the hours after midnight", collection: "kinky", signs: "Leo × Pisces", imageUrl: "", images: [], material: "14k Gold Vermeil", maker: "Arcade maker network", description: "A radiant edge dissolves into a liquid curve and one open link, capturing the charged calm after midnight.", price: null },
-].map((product) => {
-  const archived = productArchive.find((item) => item.slug === product.slug);
-  if (!archived) throw new Error(`Missing archived product data for ${product.slug}`);
-  const [amount, currency] = archived.price.split(" ");
-  const imageUrl = `/products/${product.slug}.webp`;
-  return {
-    ...product,
-    productId: archived.productId,
-    imageUrl,
-    images: [{ url: imageUrl }],
-    material: archived.material,
-    maker: archived.maker,
-    price: { amount, currency },
-    availability: "priced",
-  };
+const fallbackProducts = extendCatalogWithArchive(productArchive).map((definition) => {
+  const archived = productArchive.find((product) => product.productId === definition.productId);
+  if (!archived) throw new Error(`Missing archived product data for ${definition.slug}`);
+  return presentArchivedProduct(definition, archived);
 }) as Product[];
 
 const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
@@ -211,7 +187,7 @@ export default function Storefront() {
       <button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMenuOpen(!menuOpen)}><Menu /></button>
       <a href="#top" className="brand" aria-label="Fated and Forged home"><span>FATED</span><i>×</i><span>FORGED</span></a>
       <nav className={menuOpen ? "nav-open" : ""} aria-label="Primary navigation">
-        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>The Proposal</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>After Dark</a><a href="#shop" onClick={() => { setActiveCollection("everyday-stars"); setMenuOpen(false); }}>Everyday Stars</a><a href="#story" onClick={() => setMenuOpen(false)}>Our story</a><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
+        <a href="#shop" onClick={() => { setActiveCollection("engagement"); setMenuOpen(false); }}>The Proposal</a><a href="#shop" onClick={() => { setActiveCollection("kinky"); setMenuOpen(false); }}>After Dark</a><a href="#shop" onClick={() => { setActiveCollection("everyday-stars"); setMenuOpen(false); }}>Everyday Stars</a><a href="#story" onClick={() => setMenuOpen(false)}>Our story</a><button onClick={() => { setMemoryOpen(true); setMenuOpen(false); }}>Photo → jewelry</button><button onClick={() => { setDesignOpen(true); setMenuOpen(false); }}>Design yours</button>
       </nav>
       <button className="cart-button" onClick={() => setCartOpen(true)} aria-label={`Open cart with ${cartCount} items`}><ShoppingBag size={19} strokeWidth={1.5} /><span>Bag</span><b>{cartCount}</b></button>
     </header>
@@ -221,7 +197,7 @@ export default function Storefront() {
         <p className="eyebrow"><Asterisk size={13} /> Jewelry for two bodies, one orbit</p>
         <h1>Your chemistry,<br /><em>cast in metal.</em></h1>
         <p className="hero-lede">Fine jewelry imagined from your star signs, shared mythology, and private language—then made on demand by world-class artisans.</p>
-        <div className="hero-actions"><button className="primary-button" onClick={() => setDesignOpen(true)}>Create your piece <ArrowRight size={17} /></button><a href="#shop" className="text-link">Shop the first drop <ArrowDown size={15} /></a></div>
+        <div className="hero-actions"><button className="primary-button" onClick={() => setDesignOpen(true)}>Design with your signs <Sparkles size={16} /></button><button className="primary-button photo-primary" onClick={() => setMemoryOpen(true)}>Create from a photo <Camera size={16} /></button><a href="#shop" className="text-link">Shop the collection <ArrowDown size={15} /></a></div>
         <div className="hero-note"><span>01</span><p>No inventory. No sameness.<br />Every piece begins with a prompt.</p></div>
       </div>
       <div className="hero-visual" aria-label="Celestial jewelry composition">

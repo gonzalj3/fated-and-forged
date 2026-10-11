@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import productArchive from "@/data/arcade-products.json";
-import { catalog, presentArchivedProduct } from "@/lib/store-catalog";
+import { extendCatalogWithArchive, presentArchivedProduct } from "@/lib/store-catalog";
 
 export const dynamic = "force-static";
 
 export function GET() {
   try {
-    const products = catalog.map((definition) => {
+    const products = extendCatalogWithArchive(productArchive).map((definition) => {
       const archived = productArchive.find((product) => product.productId === definition.productId);
       if (!archived) throw new Error(`Missing archived product ${definition.productId}`);
       return presentArchivedProduct(definition, archived);

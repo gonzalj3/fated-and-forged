@@ -10,7 +10,7 @@ const catalog = read("lib/store-catalog.ts");
 const catalogRoute = read("app/api/catalog/route.ts");
 const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
-const { isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
+const { extendCatalogWithArchive, isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
 const { extractExifDate } = await import("../lib/photo-memory.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
@@ -22,6 +22,9 @@ test("Everyday Stars is accepted while bracelets are rejected from every collect
   assert.equal(isAllowedProductCandidate({ collection: "everyday-stars", productType: "birth-chart stacking ring" }), true);
   assert.equal(products.length, 57);
   assert.equal(products.filter((product) => product.collection === "everyday-stars").length, 20);
+  const expandedCatalog = extendCatalogWithArchive(products);
+  assert.equal(expandedCatalog.length, 57);
+  assert.equal(expandedCatalog.filter((product) => product.collection === "everyday-stars").length, 20);
   for (const product of products) {
     assert.equal(isProductCollection(product.collection), true);
     assert.equal(isAllowedProductCandidate({ collection: product.collection, productType: `${product.name} ${product.slug}` }), true);
@@ -54,7 +57,7 @@ test("every catalog product has a lightweight local WebP", () => {
     assert.equal(product.localAsset, `/products/${product.slug}.webp`);
   }
   assert.ok(totalBytes <= 1_500_000, `optimized catalog is ${totalBytes} bytes`);
-  assert.match(storefront, /`\/products\/\$\{product\.slug\}\.webp`/);
+  assert.match(catalog, /`\/products\/\$\{definition\.slug\}\.webp`/);
 });
 
 test("the hero image is preloaded and receives high fetch priority", () => {
@@ -68,7 +71,8 @@ test("the hero image is preloaded and receives high fetch priority", () => {
 test("storefront reads are fully static and never fan out to Arcade", () => {
   assert.doesNotMatch(storefront, /fetch\("\/api\/catalog/);
   assert.match(storefront, /productArchive/);
-  assert.match(storefront, /productId: archived\.productId/);
+  assert.match(storefront, /extendCatalogWithArchive\(productArchive\)/);
+  assert.match(storefront, /presentArchivedProduct\(definition, archived\)/);
   assert.doesNotMatch(catalogRoute, /getProduct|@\/lib\/arcade/);
   assert.match(catalogRoute, /s-maxage=86400/);
   assert.match(catalogRoute, /stale-while-revalidate=604800/);

@@ -13,6 +13,7 @@ const memoryDesignRoute = read("app/api/memory-design/route.ts");
 const celestialClient = read("lib/celestial-client.ts");
 const layout = read("app/layout.tsx");
 const nextConfig = read("next.config.ts");
+const globalStyles = read("app/globals.css");
 const { extendCatalogWithArchive, isAllowedProductCandidate, isProductCollection, productCollections } = await import("../lib/store-catalog.ts");
 const { extractExifDate, extractPhotoMetadata } = await import("../lib/photo-memory.ts");
 const { zodiacForDate } = await import("../lib/zodiac.ts");
@@ -25,6 +26,13 @@ test("bracelet collection is absent from the live storefront", () => {
 
 test("the Our Story navigation and section are removed", () => {
   assert.doesNotMatch(storefront, /href="#story"|id="story"|>Our story</i);
+});
+
+test("the storefront shows three compact product columns on desktop", () => {
+  assert.match(globalStyles, /\.product-grid\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\);gap:52px 20px\}/);
+  assert.match(globalStyles, /max-width:900px\)\{\.product-grid\{grid-template-columns:repeat\(2/);
+  assert.match(globalStyles, /\.product-grid\{grid-template-columns:1fr;gap:52px\}/);
+  assert.doesNotMatch(globalStyles, /\.product-card:nth-child\(even\)\{margin-top:90px\}/);
 });
 
 test("Everyday Stars is accepted while bracelets are rejected from every collection", () => {

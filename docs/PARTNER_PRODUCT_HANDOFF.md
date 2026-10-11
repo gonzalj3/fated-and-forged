@@ -41,6 +41,8 @@ The owner can paste the returned JSON into the coding-agent conversation for val
 
 ## Direct GitHub contribution option
 
+For the full edit, image-upload, deployment, and production-verification workflow, see [`HACKATHON_AGENT_CONTRIBUTING.md`](./HACKATHON_AGENT_CONTRIBUTING.md).
+
 After the partner's GitHub account is invited to the private repository, their agent can instead:
 
 1. Clone `https://github.com/gonzalj3/fated-and-forged`.

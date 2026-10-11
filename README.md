@@ -13,6 +13,7 @@ Fated & Forged turns a couple's zodiac pairing and shared story into made-to-ord
 - A live custom-design flow that creates new jewelry from a couple's signs and story
 - A versioned product archive in `data/arcade-products.json`
 - A credential-free partner handoff process in `docs/PARTNER_PRODUCT_HANDOFF.md`
+- A direct contributor and Vercel deployment guide in `docs/HACKATHON_AGENT_CONTRIBUTING.md`
 
 ## Local development
 
@@ -39,3 +40,7 @@ vercel deploy --prod
 Every product ID in `lib/store-catalog.ts` was returned by Arcade's prompt-to-product API after successful generation and pricing. Product renders are checked into the repository at the user's request so the complete hackathon artifact remains reproducible even if upstream image URLs change.
 
 Bracelets are intentionally marked **Coming soon**. Arcade did not expose a bracelet manufacturing category during the hackathon, so the site does not show inferred prices or allow bracelet concepts into checkout. The API experiments are preserved in `experiments/arcade-bracelet-probes/`.
+
+## Collaborating during the hackathon
+
+Use [`docs/HACKATHON_AGENT_CONTRIBUTING.md`](docs/HACKATHON_AGENT_CONTRIBUTING.md) to let an authorized partner agent upload images, edit the catalog, push changes, and optionally deploy the existing Vercel project. The credential-free product-packet alternative remains in [`docs/PARTNER_PRODUCT_HANDOFF.md`](docs/PARTNER_PRODUCT_HANDOFF.md).

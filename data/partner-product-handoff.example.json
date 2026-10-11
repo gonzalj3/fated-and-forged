@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "sourceAgent": "partner-arcade-agent",
+  "products": [
+    {
+      "availability": "priced",
+      "arcadeProductId": "replace-with-successful-arcade-product-id",
+      "arcadePatternId": "optional-pattern-id",
+      "name": "Product name",
+      "subtitle": "Short editorial line",
+      "collection": "engagement",
+      "signs": "Aries × Libra",
+      "description": "One factual, customer-facing paragraph describing the piece.",
+      "assetUrl": "https://temporary-or-public-arcade-image-url.example/image.png"
+    }
+  ]
+}

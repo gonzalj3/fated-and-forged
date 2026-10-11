@@ -8,6 +8,17 @@ export type CatalogDefinition = {
   fallbackDescription: string;
 };
 
+export type BraceletConceptDefinition = {
+  patternId: string;
+  slug: string;
+  name: string;
+  subtitle: string;
+  collection: "bracelets";
+  signs: string;
+  material: string;
+  description: string;
+};
+
 // Product IDs are created by Arcade's prompt-to-product API and committed here
 // only after generation and guaranteed pricing finish successfully.
 export const catalog: CatalogDefinition[] = [
@@ -121,6 +132,71 @@ export const catalog: CatalogDefinition[] = [
   },
 ];
 
+// Arcade does not currently expose a bracelet manufacturing category. These
+// are concept studies only: no product IDs, prices, maker claims, or checkout.
+export const braceletConcepts: BraceletConceptDefinition[] = [
+  {
+    patternId: "cmv47xock006xpa10s1t3s6o4",
+    slug: "equinox-cuff-bracelet",
+    name: "Equinox Cuff",
+    subtitle: "Opposites, held in perfect tension",
+    collection: "bracelets",
+    signs: "Aries × Libra",
+    material: "Gold vermeil direction",
+    description: "An open cuff balancing a sculptural flame against a quiet horizon, with a private celestial engraving inside.",
+  },
+  {
+    patternId: "cmv480zrv00itpb10qi1lnm0q",
+    slug: "lunar-backbone-bracelet",
+    name: "Lunar Backbone",
+    subtitle: "Softness with structure",
+    collection: "bracelets",
+    signs: "Cancer × Capricorn",
+    material: "Sterling silver direction",
+    description: "A polished cuff where a moonlit curve rises into a restrained mountain ridge—tenderness with a backbone.",
+  },
+  {
+    patternId: "cmv4813kp00ahlg101f4mdz94",
+    slug: "true-north-wrap-bracelet",
+    name: "True North Wrap",
+    subtitle: "For the pair that keeps moving",
+    collection: "bracelets",
+    signs: "Gemini × Sagittarius",
+    material: "Rose gold direction",
+    description: "Twin paths circle the wrist before meeting at a miniature compass star and arrow.",
+  },
+  {
+    patternId: "cmv4810xt00fylm10127evaoj",
+    slug: "tidal-thorn-bracelet",
+    name: "Tidal Thorn",
+    subtitle: "A beautiful kind of danger",
+    collection: "bracelets",
+    signs: "Scorpio × Pisces",
+    material: "Sterling silver direction",
+    description: "A darkly polished wave wraps into one elegant thorn, intimate and dangerous without saying too much.",
+  },
+  {
+    patternId: "cmv4813d7007ppa10nf4j8h12",
+    slug: "sun-current-bracelet",
+    name: "Sun Current",
+    subtitle: "Radiance that refuses a cage",
+    collection: "bracelets",
+    signs: "Leo × Aquarius",
+    material: "Gold vermeil direction",
+    description: "A radiant sun sends two electric currents around the wrist in a bold open silhouette.",
+  },
+  {
+    patternId: "cmv4812o200ixpb10c2wwxhhe",
+    slug: "rooted-orbit-bracelet",
+    name: "Rooted Orbit",
+    subtitle: "Grounded enough to grow",
+    collection: "bracelets",
+    signs: "Taurus × Virgo",
+    material: "Yellow gold direction",
+    description: "A slender orbit carries tiny wheat leaves and a single earth-toned stone like a shared garden.",
+  },
+];
+
 export function presentProduct(definition: CatalogDefinition, product: {
   imageUrl: string;
   images: { url: string }[];
@@ -143,5 +219,24 @@ export function presentProduct(definition: CatalogDefinition, product: {
     maker: product.maker.name || "Arcade maker network",
     description: definition.fallbackDescription,
     price: product.unitPrice,
+    availability: "priced" as const,
+  };
+}
+
+export function presentBraceletConcept(definition: BraceletConceptDefinition) {
+  return {
+    productId: `concept-${definition.patternId}`,
+    slug: definition.slug,
+    name: definition.name,
+    subtitle: definition.subtitle,
+    collection: definition.collection,
+    signs: definition.signs,
+    imageUrl: "",
+    images: [],
+    material: definition.material,
+    maker: "Arcade concept study",
+    description: definition.description,
+    price: null,
+    availability: "concept" as const,
   };
 }

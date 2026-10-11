@@ -1,0 +1,54 @@
+# Partner Arcade product handoff
+
+The safest collaboration path is a product handoff packet. It moves product IDs and creative metadata between agents without sharing either person's Arcade API key or the storefront's Vercel credentials.
+
+## Copy this prompt to the partner's agent
+
+```text
+You are contributing Arcade-generated jewelry to the Fated & Forged storefront.
+
+For every piece you generate, wait until the Arcade job reaches `succeeded`. Never include an API key, bearer token, cookie, or other credential in your response.
+
+Return one JSON object only, with this exact shape:
+{
+  "schemaVersion": 1,
+  "sourceAgent": "partner-arcade-agent",
+  "products": [
+    {
+      "availability": "priced",
+      "arcadeProductId": "the successful Arcade product ID",
+      "arcadePatternId": "the pattern ID if available, otherwise omit",
+      "name": "a distinctive 2-4 word product name",
+      "subtitle": "a short editorial line",
+      "collection": "engagement or kinky",
+      "signs": "Sign One × Sign Two",
+      "description": "one factual customer-facing paragraph",
+      "assetUrl": "the highest-resolution Arcade image URL"
+    }
+  ]
+}
+
+Rules:
+- Include only products that have a real Arcade product ID and guaranteed price.
+- Do not invent or copy a price, maker, material, product ID, or manufacturing status.
+- Do not include failed or still-running jobs.
+- Use only `engagement` or `kinky` for fulfillable products until Arcade exposes a bracelet manufacturing category.
+- If you generated only a pattern/concept, set availability to `concept`, omit arcadeProductId, include arcadePatternId, and state clearly that it is not purchasable.
+- Make the asset URL available long enough for the receiving agent to download it; signed URLs can expire.
+```
+
+The owner can paste the returned JSON into the coding-agent conversation for validation and import.
+
+## Direct GitHub contribution option
+
+After the partner's GitHub account is invited to the private repository, their agent can instead:
+
+1. Clone `https://github.com/gonzalj3/fated-and-forged`.
+2. Create a feature branch.
+3. Download each final 1024×1024 render to `public/products/<unique-slug>.png`.
+4. Add the product metadata to `data/arcade-products.json` and `lib/store-catalog.ts`.
+5. Never commit an Arcade key or `.env` file.
+6. Run `npm run build` and the repository secret scan.
+7. Commit the changes and open a pull request; do not deploy directly.
+
+The owner reviews the Arcade product IDs and merges the pull request. Vercel can then deploy the reviewed commit.

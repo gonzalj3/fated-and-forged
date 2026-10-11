@@ -9,6 +9,7 @@ const storefront = read("app/storefront.tsx");
 const catalog = read("lib/store-catalog.ts");
 const catalogRoute = read("app/api/catalog/route.ts");
 const layout = read("app/layout.tsx");
+const nextConfig = read("next.config.ts");
 
 test("bracelet collection is absent from the live storefront", () => {
   assert.doesNotMatch(storefront, /bracelet/i);
@@ -45,6 +46,12 @@ test("storefront reads are fully static and never fan out to Arcade", () => {
   assert.doesNotMatch(catalogRoute, /getProduct|@\/lib\/arcade/);
   assert.match(catalogRoute, /s-maxage=86400/);
   assert.match(catalogRoute, /stale-while-revalidate=604800/);
+});
+
+test("Vercel product assets receive immutable browser caching", () => {
+  assert.match(nextConfig, /\/products\/:path\*/);
+  assert.match(nextConfig, /max-age=31536000/);
+  assert.match(nextConfig, /immutable/);
 });
 
 test("TLA+ model records the loading safety and progress properties", () => {

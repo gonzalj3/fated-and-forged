@@ -4,6 +4,10 @@ type MemoryPromptInput = {
   memory: string;
   visualDescription: string;
   capturedAt: string;
+  capturedTime: string;
+  timezoneOffset: string;
+  latitude: number;
+  longitude: number;
   palette: string[];
 };
 
@@ -20,7 +24,7 @@ export function buildMemoryPrompt(input: MemoryPromptInput) {
     `Design a refined, manufacturable ${input.material} ${input.jewelryType} as an intimate everyday keepsake.`,
     `Memory: ${memory}.`,
     vision ? `Photo scene: ${vision}.` : "",
-    `Date: ${input.capturedAt}. Encode it subtly through engraving, stone count, spacing, or geometry.`,
+    `Moment: ${input.capturedAt} ${input.capturedTime} ${input.timezoneOffset} at ${input.latitude.toFixed(4)}, ${input.longitude.toFixed(4)}. Encode its real night sky subtly through engraving, stone count, spacing, or geometry.`,
     `Palette: ${input.palette.join(", ")}. Use it for gemstone and finish inspiration.`,
     "Translate the scene's subjects, mood, shapes, and meaningful objects into subtle motifs. Avoid literal reproduction. Make it elegant, durable, and wearable.",
   ].filter(Boolean).join(" ").slice(0, 1_000);

@@ -3,9 +3,10 @@
 import { ArrowDown, ArrowRight, Asterisk, Camera, Check, LoaderCircle, Menu, Minus, Plus, ShoppingBag, Sparkles, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import productArchive from "@/data/arcade-products.json";
+import { displayHistoricalSky, loadCelestial } from "@/lib/celestial-client";
 import { extendCatalogWithArchive, presentArchivedProduct, type ProductCollection } from "@/lib/store-catalog";
-import { extractExifDate } from "@/lib/photo-memory";
-import { zodiacForDate, type ZodiacSign } from "@/lib/zodiac";
+import { extractPhotoMetadata } from "@/lib/photo-memory";
+import { zodiacForDate } from "@/lib/zodiac";
 
 type Product = {
   productId: string; slug: string; name: string; subtitle: string;
@@ -42,20 +43,7 @@ const signs = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "
 const collectionLabels: Record<ProductCollection, string> = { engagement: "The Proposal", kinky: "After Dark", "everyday-stars": "Everyday Stars" };
 const collectionFilters = ["all", "engagement", "kinky", "everyday-stars"] as const;
 const MEMORY_PRODUCTS_KEY = "fated-and-forged-memory-products";
-const constellationPoints: Record<ZodiacSign, Array<[number, number]>> = {
-  Aries: [[12, 42], [28, 34], [44, 37], [61, 22], [84, 27]],
-  Taurus: [[10, 18], [26, 30], [42, 34], [57, 50], [72, 38], [90, 46]],
-  Gemini: [[18, 14], [24, 49], [43, 37], [59, 18], [67, 51], [84, 40]],
-  Cancer: [[12, 31], [30, 22], [46, 37], [65, 43], [86, 31]],
-  Leo: [[10, 48], [27, 37], [43, 42], [55, 24], [73, 18], [88, 31]],
-  Virgo: [[10, 20], [25, 34], [40, 18], [53, 40], [70, 29], [88, 47]],
-  Libra: [[12, 39], [30, 21], [49, 28], [68, 18], [87, 38]],
-  Scorpio: [[9, 20], [24, 31], [39, 23], [53, 39], [69, 34], [85, 49], [92, 30]],
-  Sagittarius: [[9, 49], [28, 39], [44, 20], [61, 35], [78, 15], [88, 31]],
-  Capricorn: [[10, 20], [27, 31], [41, 49], [58, 39], [73, 18], [89, 26]],
-  Aquarius: [[8, 25], [24, 37], [40, 25], [57, 40], [73, 28], [91, 38]],
-  Pisces: [[10, 20], [27, 32], [43, 47], [58, 33], [75, 43], [91, 25]],
-};
+const SAN_FRANCISCO = { latitude: "37.7749", longitude: "-122.4194" };
 
 function money(price: Product["price"]) {
   if (!price) return "Pricing…";
@@ -67,18 +55,52 @@ function ProductArtwork({ product, priority = false }: { product: Product; prior
   return <div className="placeholder-art" aria-label="Arcade product render in progress"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Sparkles size={28} strokeWidth={1} /><span>Arcade is crafting this render</span></div>;
 }
 
-function DateConstellation({ date }: { date: string }) {
-  const sign = zodiacForDate(date);
-  const points = constellationPoints[sign];
-  const line = points.map(([x, y]) => `${x},${y}`).join(" ");
-  return <div className="memory-constellation memory-stage" aria-live="polite">
-    <p className="eyebrow">The sky on your date</p>
-    <svg viewBox="0 0 100 64" role="img" aria-label={`${sign} constellation`}>
-      <polyline points={line} />
-      {points.map(([x, y], index) => <circle key={`${x}-${y}`} cx={x} cy={y} r={index % 3 === 0 ? 2.1 : 1.35} />)}
-    </svg>
-    <h2 id="memory-title">{sign}</h2>
-    <p>{date ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Your captured date"}</p>
+function dateParts(value: Date) {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return { date: `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`, time: `${pad(value.getHours())}:${pad(value.getMinutes())}` };
+}
+
+function sanFranciscoOffset(date: string) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", timeZoneName: "longOffset" }).formatToParts(new Date(`${date || "2026-10-11"}T12:00:00Z`));
+    const offset = parts.find((part) => part.type === "timeZoneName")?.value.replace("GMT", "");
+    return offset && /^[+-]\d{2}:\d{2}$/.test(offset) ? offset : "-08:00";
+  } catch { return "-08:00"; }
+}
+
+function browserOffset(date: string) {
+  const value = date ? new Date(`${date}T12:00:00`) : new Date();
+  const total = -value.getTimezoneOffset();
+  const sign = total < 0 ? "-" : "+";
+  const absolute = Math.abs(total);
+  return `${sign}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(absolute % 60).padStart(2, "0")}`;
+}
+
+function HistoricalSky({ date, time, timezoneOffset, latitude, longitude }: { date: string; time: string; timezoneOffset: string; latitude: number; longitude: number }) {
+  const [mapState, setMapState] = useState<"loading" | "ready" | "error">("loading");
+  useEffect(() => {
+    let cancelled = false;
+    const map = document.getElementById("memory-sky-map");
+    map?.replaceChildren();
+    loadCelestial().then((celestial) => {
+      if (cancelled) return;
+      displayHistoricalSky(celestial, { container: "memory-sky-map", date, time, timezoneOffset, latitude, longitude });
+      setMapState("ready");
+    }).catch(() => { if (!cancelled) setMapState("error"); });
+    return () => { cancelled = true; };
+  }, [date, time, timezoneOffset, latitude, longitude]);
+
+  const displayDate = date ? new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Your captured date";
+  return <div className="memory-constellation historical-sky memory-stage" aria-live="polite">
+    <p className="eyebrow">The sky at your moment</p>
+    <div className="sky-map-frame">
+      <div id="memory-sky-map" role="img" aria-label={`Night sky above ${latitude.toFixed(4)}, ${longitude.toFixed(4)} on ${date} at ${time} ${timezoneOffset}`} />
+      <div id="celestial-form" hidden aria-hidden="true" />
+      {mapState === "loading" && <span className="sky-map-loading"><LoaderCircle className="spin" size={18} /> Calculating the stars</span>}
+      {mapState === "error" && <span className="sky-map-loading">The star map could not load, but your piece is still being forged.</span>}
+    </div>
+    <h2 id="memory-title">{displayDate}</h2>
+    <p>{time} {timezoneOffset} · {latitude.toFixed(4)}, {longitude.toFixed(4)}</p>
     <span><LoaderCircle className="spin" size={16} /> Arcade is translating this memory into metal</span>
   </div>;
 }
@@ -141,7 +163,12 @@ export default function Storefront() {
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [memoryPreview, setMemoryPreview] = useState("");
   const [memoryDate, setMemoryDate] = useState("");
+  const [memoryTime, setMemoryTime] = useState("21:00");
+  const [memoryTimezoneOffset, setMemoryTimezoneOffset] = useState("-07:00");
+  const [memoryLatitude, setMemoryLatitude] = useState(SAN_FRANCISCO.latitude);
+  const [memoryLongitude, setMemoryLongitude] = useState(SAN_FRANCISCO.longitude);
   const [memoryDateNote, setMemoryDateNote] = useState("");
+  const [memorySkyNote, setMemorySkyNote] = useState("No photo metadata yet—using 9:00 PM in San Francisco. You can edit these values.");
   const [memoryPalette, setMemoryPalette] = useState<string[]>([]);
   const [visualDescription, setVisualDescription] = useState("");
   const [visionState, setVisionState] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -207,13 +234,24 @@ export default function Storefront() {
       setMemoryState("error"); setMemoryMessage("Choose a JPG, PNG, or WebP image under 12 MB."); return;
     }
     try {
-      const exifDate = extractExifDate(await file.arrayBuffer());
-      const fallbackDate = file.lastModified ? new Date(file.lastModified).toISOString().slice(0, 10) : "";
+      const metadata = extractPhotoMetadata(await file.arrayBuffer());
+      const fallback = file.lastModified ? dateParts(new Date(file.lastModified)) : { date: "", time: "21:00" };
+      const selectedDate = metadata.date || fallback.date;
+      const selectedTime = metadata.capturedAt?.slice(11, 16) || "21:00";
+      const hasGps = metadata.latitude !== null && metadata.longitude !== null;
+      const latitude = hasGps ? metadata.latitude!.toFixed(6) : SAN_FRANCISCO.latitude;
+      const longitude = hasGps ? metadata.longitude!.toFixed(6) : SAN_FRANCISCO.longitude;
+      const timezoneOffset = metadata.timezoneOffset || (hasGps ? browserOffset(selectedDate) : sanFranciscoOffset(selectedDate));
       if (memoryPreview) URL.revokeObjectURL(memoryPreview);
       const preview = URL.createObjectURL(file);
       setMemoryPreview(preview);
-      setMemoryDate(exifDate || fallbackDate);
-      setMemoryDateNote(exifDate ? "Capture date found in photo metadata" : "No EXIF capture date found—please check the suggested file date");
+      setMemoryDate(selectedDate);
+      setMemoryTime(selectedTime);
+      setMemoryTimezoneOffset(timezoneOffset);
+      setMemoryLatitude(latitude);
+      setMemoryLongitude(longitude);
+      setMemoryDateNote(metadata.date ? "Capture date found in photo metadata" : "No EXIF capture date found—please check the suggested file date");
+      setMemorySkyNote(`${metadata.capturedAt ? "Capture time found in metadata." : "No capture time found—using 9:00 PM."} ${hasGps ? "GPS coordinates found in metadata." : "No GPS found—using San Francisco."} ${metadata.timezoneOffset ? "UTC offset found in metadata." : "Please check the suggested UTC offset."}`);
       setVisualDescription(""); setVisionState("loading");
       const [palette, imageDataUrl] = await Promise.all([extractPhotoPalette(preview), preparePhotoForVision(preview)]);
       setMemoryPalette(palette);
@@ -248,7 +286,7 @@ export default function Storefront() {
     setMemoryState("loading"); setMemoryMessage("");
     const details = Object.fromEntries(new FormData(event.currentTarget).entries()) as Record<string, string>;
     try {
-      const response = await fetch("/api/memory-design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, capturedAt: memoryDate, palette: memoryPalette, visualDescription }) });
+      const response = await fetch("/api/memory-design", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...details, capturedAt: memoryDate, capturedTime: memoryTime, timezoneOffset: memoryTimezoneOffset, latitude: Number(memoryLatitude), longitude: Number(memoryLongitude), palette: memoryPalette, visualDescription }) });
       const data = await response.json() as DesignResponse;
       if (!response.ok || !data.jobId) throw new Error(data.error || "Could not start the memory design");
       for (let attempt = 0; attempt < 45; attempt += 1) {
@@ -325,6 +363,44 @@ export default function Storefront() {
 
     {designOpen && <div className="modal-backdrop" onMouseDown={() => setDesignOpen(false)}><section className="design-modal" role="dialog" aria-modal="true" aria-labelledby="design-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setDesignOpen(false)} aria-label="Close"><X /></button><p className="eyebrow"><Sparkles size={13} /> Powered by Arcade</p><h2 id="design-title">Design your chemistry.</h2><p>Give us the celestial ingredients. Arcade will generate a real piece and return a guaranteed manufacturing price.</p>{designState === "done" ? <div className="design-success"><Check /><h3>Your stars are aligning.</h3><p>{designMessage}</p><button className="primary-button" onClick={() => setDesignOpen(false)}>Back to the atelier</button></div> : <form onSubmit={submitDesign}><div className="form-row"><label>Your sign<select name="signOne" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label><span>×</span><label>Their sign<select name="signTwo" required defaultValue=""><option value="" disabled>Select</option>{signs.map((sign) => <option key={sign}>{sign}</option>)}</select></label></div><label>What are we making?<select name="collection" required defaultValue="engagement"><option value="engagement">An engagement ring</option><option value="kinky">An after-dark necklace</option><option value="everyday-stars">An Everyday Stars necklace</option></select></label><label>Your shared energy<textarea name="story" required minLength={10} maxLength={350} placeholder="Magnetic, playful, a little dangerous. We met at midnight in New Orleans…" /></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label>{designState === "error" && <p className="error-text">{designMessage}</p>}<button className="primary-button design-submit" disabled={designState === "loading"}>{designState === "loading" ? <><LoaderCircle className="spin" size={18} /> Casting your prompt…</> : <>Generate my piece <Sparkles size={16} /></>}</button><small>Generation usually takes a few minutes. No purchase is made.</small></form>}</section></div>}
 
-    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}><section className={`design-modal memory-modal ${memoryState === "done" ? "memory-modal-reveal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}><button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button>{memoryState === "loading" ? <DateConstellation date={memoryDate} /> : memoryState === "done" && memoryProduct ? <div className="memory-product-reveal memory-stage"><div className="memory-result-art"><ProductArtwork product={memoryProduct} priority /></div><div className="memory-result-copy"><p className="eyebrow"><Check size={13} /> Your memory, forged</p><h2 id="memory-title">{memoryProduct.name}</h2><p className="memory-result-sign">{zodiacForDate(memoryDate)} / {memoryDate}</p><p>{memoryProduct.description}</p><dl><div><dt>Material</dt><dd>{memoryProduct.material}</dd></div><div><dt>Made by</dt><dd>{memoryProduct.maker}</dd></div><div><dt>Arcade price</dt><dd>{money(memoryProduct.price)}</dd></div></dl><p className="memory-saved-note">Saved to Everyday Stars on this browser.</p><div className="memory-result-actions"><button className="primary-button" onClick={() => { setMemoryOpen(false); addToCart(memoryProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showMemoryInStorefront}>See it in the collection</button></div></div></div> : <><p className="eyebrow"><Camera size={13} /> A moment, made tangible</p><h2 id="memory-title">Forge a memory.</h2><p>Upload a photo and tell us what it means. We’ll automatically interpret its scene, date, and palette before Arcade turns it into a manufacturable piece.</p><form onSubmit={submitMemoryDesign}><label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required={!memoryPreview} /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>{memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><div className={`vision-status ${visionState}`} aria-live="polite">{visionState === "loading" ? <><LoaderCircle className="spin" size={13} /> Analyzing photo…</> : visionState === "done" ? <><Check size={13} /> Photo analyzed</> : visionState === "error" ? "Photo analysis unavailable" : null}</div></div></div>}<label>Date taken<input type="date" value={memoryDate} onChange={(event) => setMemoryDate(event.target.value)} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available."}</small></label><label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label><div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>{memoryState === "error" && <p className="error-text">{memoryMessage}</p>}<button className="primary-button design-submit" disabled={visionState === "loading"}>Create from this memory <Camera size={16} /></button><small>Photo analysis starts automatically. Arcade receives only the internal description, date, palette, and your memory—not the photo. No purchase is made.</small></form></>}</section></div>}
+    {memoryOpen && <div className="modal-backdrop" onMouseDown={() => setMemoryOpen(false)}>
+      <section className={`design-modal memory-modal ${memoryState === "done" ? "memory-modal-reveal" : ""}`} role="dialog" aria-modal="true" aria-labelledby="memory-title" onMouseDown={(event) => event.stopPropagation()}>
+        <button className="close-button" onClick={() => setMemoryOpen(false)} aria-label="Close"><X /></button>
+        {memoryState === "loading" ? <HistoricalSky date={memoryDate} time={memoryTime} timezoneOffset={memoryTimezoneOffset} latitude={Number(memoryLatitude)} longitude={Number(memoryLongitude)} /> : memoryState === "done" && memoryProduct ?
+          <div className="memory-product-reveal memory-stage">
+            <div className="memory-result-art"><ProductArtwork product={memoryProduct} priority /></div>
+            <div className="memory-result-copy">
+              <p className="eyebrow"><Check size={13} /> Your memory, forged</p>
+              <h2 id="memory-title">{memoryProduct.name}</h2>
+              <p className="memory-result-sign">{zodiacForDate(memoryDate)} / {memoryDate} at {memoryTime}</p>
+              <p>{memoryProduct.description}</p>
+              <dl><div><dt>Material</dt><dd>{memoryProduct.material}</dd></div><div><dt>Made by</dt><dd>{memoryProduct.maker}</dd></div><div><dt>Arcade price</dt><dd>{money(memoryProduct.price)}</dd></div></dl>
+              <p className="memory-saved-note">Saved to Everyday Stars on this browser.</p>
+              <div className="memory-result-actions"><button className="primary-button" onClick={() => { setMemoryOpen(false); addToCart(memoryProduct); }}>Add to bag <ArrowRight size={16} /></button><button className="text-button" onClick={showMemoryInStorefront}>See it in the collection</button></div>
+            </div>
+          </div> : <>
+            <p className="eyebrow"><Camera size={13} /> A moment, made tangible</p>
+            <h2 id="memory-title">Forge a memory.</h2>
+            <p>Upload a photo and tell us what it means. We’ll read its date, time, location, and palette when available, then show that night’s sky before Arcade reveals your piece.</p>
+            <form onSubmit={submitMemoryDesign}>
+              <label className="photo-upload">Your photograph<input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectMemoryPhoto} required={!memoryPreview} /><span><Camera size={18} /> {memoryPreview ? "Choose a different photo" : "Choose a photo"}</span></label>
+              {memoryPreview && <div className="memory-preview"><img src={memoryPreview} alt="Your uploaded memory" /><div><small>{memoryDateNote}</small><div className="memory-palette" aria-label="Colors extracted from your photo">{memoryPalette.map((color) => <i key={color} style={{ backgroundColor: color }} title={color} />)}</div><div className={`vision-status ${visionState}`} aria-live="polite">{visionState === "loading" ? <><LoaderCircle className="spin" size={13} /> Analyzing photo…</> : visionState === "done" ? <><Check size={13} /> Photo analyzed</> : visionState === "error" ? "Photo analysis unavailable" : null}</div></div></div>}
+              <label>Date taken<input type="date" value={memoryDate} onChange={(event) => { setMemoryDate(event.target.value); if (memoryLatitude === SAN_FRANCISCO.latitude && memoryLongitude === SAN_FRANCISCO.longitude) setMemoryTimezoneOffset(sanFranciscoOffset(event.target.value)); }} required /><small>{memoryDateNote || "We’ll read this from the photo metadata when available, or you can enter it."}</small></label>
+              <div className="memory-sky-options">
+                <label>Time<input name="capturedTime" type="time" value={memoryTime} onChange={(event) => setMemoryTime(event.target.value)} required /></label>
+                <label>UTC offset<input name="timezoneOffset" type="text" value={memoryTimezoneOffset} onChange={(event) => setMemoryTimezoneOffset(event.target.value)} pattern="[+-](0[0-9]|1[0-4]):[0-5][0-9]" placeholder="-07:00" required /></label>
+                <label>Latitude<input name="latitude" type="number" value={memoryLatitude} onChange={(event) => setMemoryLatitude(event.target.value)} min="-90" max="90" step="0.000001" required /></label>
+                <label>Longitude<input name="longitude" type="number" value={memoryLongitude} onChange={(event) => setMemoryLongitude(event.target.value)} min="-180" max="180" step="0.000001" required /></label>
+              </div>
+              <p className="memory-sky-note">{memorySkyNote}</p>
+              <label>What happened in this moment?<textarea name="memory" required minLength={10} maxLength={500} placeholder="The evening we realized this was forever—the air smelled like rain and the whole city turned gold…" /></label>
+              <div className="memory-options"><label>Piece<select name="jewelryType" required defaultValue="necklace"><option value="necklace">Pendant necklace</option><option value="ring">Stacking ring</option></select></label><label>Material<select name="material" required defaultValue="14k Gold Vermeil"><option>14k Gold Vermeil</option><option>925 Sterling Silver</option><option>14k Yellow Gold</option><option>14k Rose Gold</option><option>14k White Gold</option></select></label></div>
+              {memoryState === "error" && <p className="error-text">{memoryMessage}</p>}
+              <button className="primary-button design-submit" disabled={visionState === "loading"}>Create from this memory <Camera size={16} /></button>
+              <small>The sky map is calculated in your browser from local star data. Arcade receives the internal photo description, moment, coordinates, palette, and your memory—not the photo. No purchase is made.</small>
+            </form>
+          </>}
+      </section>
+    </div>}
   </main>;
 }

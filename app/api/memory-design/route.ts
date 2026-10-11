@@ -16,16 +16,20 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const memory = String(body.memory || "").trim();
     const capturedAt = String(body.capturedAt || "");
+    const capturedTime = String(body.capturedTime || "");
+    const timezoneOffset = String(body.timezoneOffset || "");
+    const latitude = Number(body.latitude);
+    const longitude = Number(body.longitude);
     const material = String(body.material || "");
     const jewelryType = String(body.jewelryType || "") as keyof typeof categories;
     const visualDescription = String(body.visualDescription || "").trim();
     const palette = Array.isArray(body.palette) ? body.palette.map(String).filter((color) => /^#[0-9a-f]{6}$/i.test(color)).slice(0, 5) : [];
 
-    if (memory.length < 10 || memory.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(capturedAt) || !materials.has(material) || !Object.hasOwn(categories, jewelryType) || palette.length === 0) {
+    if (memory.length < 10 || memory.length > 500 || !/^\d{4}-\d{2}-\d{2}$/.test(capturedAt) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(capturedTime) || !/^[+-](0\d|1[0-4]):[0-5]\d$/.test(timezoneOffset) || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || !materials.has(material) || !Object.hasOwn(categories, jewelryType) || palette.length === 0) {
       return NextResponse.json({ error: "Please add a photo, its date, and the memory you want to preserve" }, { status: 400 });
     }
 
-    const prompt = buildMemoryPrompt({ material, jewelryType, memory, visualDescription, capturedAt, palette });
+    const prompt = buildMemoryPrompt({ material, jewelryType, memory, visualDescription, capturedAt, capturedTime, timezoneOffset, latitude, longitude, palette });
     const result = await arcadeRequest<Job>("/patterns/create", {
       requestId: `fated-memory-${randomUUID()}`,
       prompt,
